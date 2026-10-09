@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Family Translator</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--mute:#6b6b70;--a:#c2410c;--b:#1d4ed8;--warn:#92400e;--warnbg:#fef3c7;--line:#e3e1db;--btn:#1d4ed8}
+@media(prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--ink:#f1f1f3;--mute:#9a9aa2;--a:#fb923c;--b:#60a5fa;--warn:#fde68a;--warnbg:#4a3a12;--line:#2f2f35;--btn:#2563eb}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:18px;margin:0;flex:1 1 auto}
+.pair{display:flex;align-items:center;gap:6px;color:var(--mute)}
+select,button,textarea{font:inherit;color:inherit}
+select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
+.auto{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:15px}
+.auto input{width:20px;height:20px}
+.ghost{background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--mute)}
+#log{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.empty{color:var(--mute);text-align:center;margin:auto;max-width:30ch}
+.msg{max-width:88%;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.msg.a{align-self:flex-start;border-left:5px solid var(--a)}
+.msg.b{align-self:flex-end;border-right:5px solid var(--b)}
+.msg.x{align-self:center}
+.orig{color:var(--mute);font-size:14px;overflow-wrap:anywhere}
+.tr{font-size:22px;font-weight:600;margin-top:4px;overflow-wrap:anywhere}
+.row{display:flex;align-items:center;gap:10px;margin-top:6px}
+.meta{font-size:12px;color:var(--mute);flex:1}
+.play{border:1px solid var(--line);background:var(--bg);border-radius:999px;min-width:44px;height:44px;font-size:18px;line-height:1;cursor:pointer}
+.play:active{transform:scale(.95)}
+.warn{display:inline-block;background:var(--warnbg);color:var(--warn);border-radius:6px;padding:2px 8px;font-size:13px;margin-top:6px}
+.err .tr{color:#b91c1c}
+footer{padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--bg)}
+textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card)}
+#status{font-size:14px;color:var(--warn);background:var(--warnbg);border-radius:8px;padding:6px 10px;margin-bottom:8px}
+#status:empty{display:none}
+.actions{display:flex;gap:8px;margin-top:8px}
+.mic{flex:1;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 6px;font-weight:600;font-size:16px}
+.mic.on{background:#b91c1c;color:#fff;border-color:#b91c1c}
+.cfg{font-size:14px;color:var(--mute);margin-top:8px}
+.cfg summary{cursor:pointer}
+.cfg label{display:inline-flex;align-items:center;gap:6px;margin:6px 12px 0 0}
+#go{width:100%;margin-top:8px;border:0;border-radius:12px;padding:14px 8px;font-weight:600;font-size:18px;color:#fff;background:var(--btn)}
+#go:disabled{opacity:.45}
+</style>
+</head>
+<body>
+<header>
+  <h1>Family Translator</h1>
+  <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
+  <button class="ghost" id="scr"></button>
+  <label class="auto"><input type="checkbox" id="auto"> Auto-play</label>
+  <button class="ghost" id="reset" title="Start a fresh conversation">New</button>
+</header>
+<main id="log"><p class="empty" id="empty">Type what was said in either language. It translates into the other one.</p></main>
+<footer>
+  <div id="status" role="status"></div>
+  <textarea id="inp" placeholder="Type here, or tap a microphone…" enterkeyhint="send"></textarea>
+  <div class="actions"><button class="mic" id="mica"></button><button class="mic" id="micb"></button></div>
+  <button id="go">Translate</button>
+  <details class="cfg"><summary>Voice settings</summary>
+    <div id="cfg"></div>
+    <label>Speaking speed <input type="range" id="rate" min="0.5" max="1.2" step="0.05"> <span id="rateval"></span></label>
+  </details>
+</footer>
+<script>
+const LANGS=["Assamese","German","English","Hindi"];
+// Assamese is written in Latin letters, so an Indian-English voice reads it best.
+const VOICE_TAGS={Assamese:["en-IN","hi-IN","en-GB","en-US"],AssameseScript:["as-IN","bn-IN","hi-IN","en-IN"],German:["de-DE","de-AT","de-CH"],English:["en-US","en-GB","en-IN"],Hindi:["hi-IN","en-IN"]};
+const $=s=>document.querySelector(s);
+const get=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}};
+const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+const la=$("#la"), lb=$("#lb"), inp=$("#inp"), log=$("#log"), go=$("#go");
+for(const sel of [la,lb]) for(const l of LANGS) sel.add(new Option(l,l));
+la.value=get("la","Assamese"); lb.value=get("lb","German");
+if(la.value===lb.value) lb.value=LANGS.find(l=>l!==la.value);
+function pairChanged(e){
+  const changed=e.target, other=changed===la?lb:la;
+  if(changed.value===other.value) other.value=LANGS.find(l=>l!==changed.value);
+  put("la",la.value); put("lb",lb.value);
+}
+la.onchange=lb.onchange=pairChanged;
+
+/* ---- speech output (the phone's own voices) ---- */
+let voices=[];
+const canSpeak="speechSynthesis" in window;
+function loadVoices(){ try{voices=speechSynthesis.getVoices()}catch(e){voices=[]} }
+if(canSpeak){ loadVoices(); speechSynthesis.onvoiceschanged=loadVoices; }
+const norm=v=>v.lang.replace("_","-").toLowerCase();
+function pickVoice(lang){
+  const tags=VOICE_TAGS[lang]||[];
+  for(const tag of tags){
+    const v=voices.find(v=>norm(v)===tag.toLowerCase());
+    if(v) return v;
+  }
+  const primary=(tags[0]||"en").split("-")[0].toLowerCase();   // any voice in the same language
+  return voices.find(v=>norm(v).split("-")[0]===primary) || null;
+}
+function speak(text,lang,btn){
+  if(!canSpeak){ btn.title="This browser cannot speak"; return; }
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text), v=pickVoice(lang);
+  if(v){ u.voice=v; u.lang=v.lang; } else { u.lang=(VOICE_TAGS[lang]||["en-US"])[0]; }
+  u.rate=parseFloat(rate.value)||0.75;
+  btn.title=(v?v.name+" ("+v.lang+")":"default voice ("+u.lang+")");
+  speechSynthesis.speak(u);
+}
+
+// iPhones only allow speech that starts from a tap. Speaking a silent utterance inside the tap
+// handler unlocks the speaker, so the translation can be spoken when it arrives a moment later.
+function unlockSpeech(){
+  if(!canSpeak) return;
+  try{ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u); }catch(e){}
+}
+const rate=$("#rate"), rateval=$("#rateval");
+rate.value=get("rate","0.75");
+const showRate=()=>{ rateval.textContent=Number(rate.value).toFixed(2)+"×"; };
+showRate();
+rate.oninput=()=>{ put("rate",rate.value); showRate(); };
+// How Assamese replies are written: Latin letters (default, how the family chats) or Assamese script.
+let script=get("script","0")==="1";
+const scrBtn=$("#scr");
+const showScr=()=>{
+  scrBtn.textContent=script?"অ Assamese script":"Aa Latin letters";
+  scrBtn.title="How Assamese replies are written. Tap to switch.";
+};
+showScr();
+scrBtn.onclick=()=>{ script=!script; put("script",script?"1":"0"); showScr(); };
+const auto=$("#auto");
+auto.checked=get("auto","1")==="1";
+auto.onchange=()=>put("auto",auto.checked?"1":"0");
+
+/* ---- speech input (the phone's own recognizer; needs https) ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+// Which recognizer language to use when someone speaks each language. In testing, Chrome's as-IN
+// returned English-looking text, so Assamese is heard as Bengali (nearly the same script);
+// the translator reads the text by sound. hi-IN / en-IN are alternatives.
+const MIC_OPTS={Assamese:["bn-IN","hi-IN","en-IN"],German:["de-DE","de-AT","de-CH"],English:["en-IN","en-US","en-GB"],Hindi:["hi-IN","en-IN"]};
+const micLang=l=>{ const v=get("mic_"+l,""); return MIC_OPTS[l].includes(v)?v:MIC_OPTS[l][0]; };
+const statusEl=$("#status");
+const say=m=>{ statusEl.textContent=m||""; };
+let rec=null, micErr=false, conf=0;
+
+function refreshMics(){
+  $("#mica").textContent="🎤 "+la.value; $("#micb").textContent="🎤 "+lb.value;
+  const cfg=$("#cfg"); cfg.replaceChildren();
+  for(const l of [la.value,lb.value]){
+    const lab=document.createElement("label"), sel=document.createElement("select");
+    for(const c of MIC_OPTS[l]) sel.add(new Option(c,c));
+    sel.value=micLang(l); sel.onchange=()=>put("mic_"+l,sel.value);
+    lab.append(l+" heard as ",sel); cfg.append(lab);
+  }
+}
+la.addEventListener("change",refreshMics); lb.addEventListener("change",refreshMics); refreshMics();
+
+function micError(code,lang){
+  const m={"not-allowed":"Microphone blocked. Allow it for this site in the browser settings (the page must also be https).",
+    "service-not-allowed":"Speech recognition is blocked on this device.",
+    "language-not-supported":"This phone cannot recognise "+lang+". Pick another under Voice settings.",
+    "no-speech":"Did not hear anything. Tap the microphone and speak.",
+    "audio-capture":"No microphone found.",
+    "network":"The speech service could not be reached (it needs the internet)."};
+  return m[code]||("Microphone problem: "+code);
+}
+function toggleMic(side){
+  if(rec){ try{rec.stop()}catch(e){} return; }
+  if(!SR){ say("This browser cannot do speech recognition. Use Chrome on Android or on a computer."); return; }
+  if(!window.isSecureContext){ say("The microphone only works on an https page. On Android/Windows Chrome you can allow this address in chrome://flags/#unsafely-treat-insecure-origin-as-secure."); return; }
+  const language=side==="a"?la.value:lb.value, code=micLang(language);
+  if(canSpeak) speechSynthesis.cancel();
+  unlockSpeech(); say(""); micErr=false; conf=0; inp.value="";
+  const r=new SR(); rec=r; r.lang=code; r.interimResults=true; r.continuous=false; r.maxAlternatives=1;
+  const btn=$(side==="a"?"#mica":"#micb");
+  r.onstart=()=>{ btn.classList.add("on"); btn.textContent="■ Listening… ("+code+")"; };
+  r.onresult=e=>{ let s=""; for(const res of e.results) s+=res[0].transcript; inp.value=s.trim(); conf=e.results[0][0].confidence; };
+  r.onerror=e=>{ if(e.error!=="aborted"){ micErr=true; say(micError(e.error,code)); } };
+  r.onend=()=>{
+    btn.classList.remove("on"); refreshMics(); rec=null;
+    if(inp.value.trim() && !micErr) send("mic "+code+(conf?" "+Math.round(conf*100)+"%":""));
+  };
+  try{ r.start(); }catch(e){ rec=null; say("Could not start the microphone: "+e.message); }
+}
+$("#mica").onclick=()=>toggleMic("a"); $("#micb").onclick=()=>toggleMic("b");
+
+/* ---- chat ---- */
+function add(orig){
+  $("#empty")?.remove();
+  const m=document.createElement("div"); m.className="msg x";
+  const o=document.createElement("div"); o.className="orig"; o.textContent=orig;
+  const t=document.createElement("div"); t.className="tr"; t.textContent="…";
+  const row=document.createElement("div"); row.className="row";
+  const x=document.createElement("div"); x.className="meta";
+  row.append(x); m.append(o,t,row); log.append(m); log.scrollTop=log.scrollHeight;
+  return {m,t,x,row};
+}
+async function send(via){
+  const text=inp.value.trim(); if(!text) return;
+  inp.value=""; go.disabled=true;
+  unlockSpeech();
+  const ui=add(text);
+  try{
+    const r=await fetch("/api/translate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({a:la.value,b:lb.value,text,script})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||r.status);
+    ui.t.textContent=d.t;
+    ui.m.className="msg "+(d.from===la.value?"a":d.from===lb.value?"b":"x");
+    ui.x.textContent=(d.from||"?")+" → "+d.to+" · "+(d.ms/1000).toFixed(1)+"s"+(via?" · "+via:"");
+    const p=document.createElement("button"); p.className="play"; p.textContent="▶"; p.setAttribute("aria-label","Play translation");
+    const voiceFor=(d.to==="Assamese"&&script)?"AssameseScript":d.to;   // script text needs an Assamese-capable voice
+    p.onclick=()=>speak(d.t,voiceFor,p); ui.row.append(p);
+    if(!d.ok){const w=document.createElement("div"); w.className="warn"; w.textContent="Not sure — showing the meaning in English"; ui.m.append(w);}
+    else if(auto.checked) speak(d.t,voiceFor,p);
+  }catch(e){ ui.m.classList.add("err"); ui.t.textContent="Could not translate. Please try again."; ui.x.textContent=String(e.message||e); }
+  go.disabled=false; log.scrollTop=log.scrollHeight; inp.focus();
+}
+go.onclick=()=>send();
+inp.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } });
+$("#reset").onclick=async()=>{
+  if(!confirm("Start a new conversation?")) return;
+  try{await fetch("/api/reset",{method:"POST"});}catch(e){}
+  if(canSpeak) speechSynthesis.cancel();
+  log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:"New conversation. Type what was said in either language."}));
+};
+</script>
+</body>
+</html>

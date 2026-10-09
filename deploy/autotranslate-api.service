@@ -1,0 +1,14 @@
+[Unit]
+Description=AutoTranslate API (family translator)
+
+[Service]
+WorkingDirectory=%h/autotranslate
+Environment=AT_MODEL=claude-sonnet-5-5
+Environment=PATH=%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/autotranslate/venv/bin/uvicorn server:app --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=5
+MemoryMax=700M
+
+[Install]
+WantedBy=default.target

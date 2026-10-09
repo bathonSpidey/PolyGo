@@ -1,0 +1,56 @@
+"""Translation engine: wraps Claude Code. Text in, dict out: {t, ok, from}."""
+import json, os, re, subprocess
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+SYSTEM_PROMPT = open(os.path.join(HERE, "system_prompt.txt"), encoding="utf-8").read()
+CLAUDE = os.path.expanduser("~/.npm-global/bin/claude")
+FLAGS = ["--model", os.environ.get("AT_MODEL", "haiku"), "--tools", "", "--system-prompt", SYSTEM_PROMPT,
+         "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
+
+def parse(raw):
+    """Extract {"t","ok","from"}; if the model broke format, treat as not-ok."""
+    m = re.search(r"\{.*\}", raw, re.S)
+    if m:
+        try:
+            d = json.loads(m.group(0))
+            return {"t": str(d.get("t", "")).strip(), "ok": bool(d.get("ok", False)), "from": d.get("from")}
+        except json.JSONDecodeError:
+            pass
+    return {"t": raw.strip(), "ok": False, "from": None}
+
+class Session:
+    """One long-running claude process; each translation is a new turn."""
+    def __init__(self):
+        self.p = subprocess.Popen(
+            [CLAUDE, "-p", *FLAGS, "--input-format", "stream-json",
+             "--output-format", "stream-json", "--verbose"],
+            cwd=HERE, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+
+    def ask(self, content):
+        msg = {"type": "user", "message": {"role": "user", "content": content}}
+        self.p.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
+        self.p.stdin.flush()
+        for line in self.p.stdout:
+            ev = json.loads(line)
+            if ev.get("type") == "result":
+                return parse(ev.get("result") or "")
+        raise RuntimeError("claude process ended")
+
+    def translate(self, src, tgt, text):
+        return self.ask(f"[{src} -> {tgt}] {text}")
+
+    def translate_pair(self, a, b, text, assamese_script=False):
+        tag = "[assamese-output=script] " if assamese_script else ""
+        return self.ask(f"[{a} <-> {b}] {tag}{text}")
+
+    def close(self):
+        self.p.stdin.close()
+        self.p.wait(timeout=10)
+
+    def kill(self):
+        try:
+            self.p.kill()
+            self.p.wait(timeout=5)
+        except Exception:
+            pass
