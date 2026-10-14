@@ -62,7 +62,8 @@ The Zero has one Wi-Fi radio, so *setup mode* (box is the hotspot) and *normal m
 - [ ] iPhone test (needs HTTPS)
 - [x] Access passcode (shared family passcode, fail closed)
 - [ ] Family glossary: real phrases, names and spellings (`glossary.txt`, private)
-- [ ] Public HTTPS link (Tailscale Funnel) and iPhone mic test
+- [x] Public HTTPS link (Tailscale Funnel), checked from the internet: valid certificate, passcode required
+- [ ] iPhone mic test over the public link
 - [ ] Belt enclosure
 
 ## Open questions
@@ -91,6 +92,21 @@ echo "pick-a-passcode-here" > passcode.txt && chmod 600 passcode.txt   # git-ign
 ```
 
 Optional: copy `glossary.example.txt` to `glossary.txt` and fill in your family's words, names and example sentences; the translator follows them over its own guesses (also git-ignored). A systemd user unit is in `deploy/polygo-api.service`. For mic testing on Chrome over plain `http`, allow the address in `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+
+## Public HTTPS link (Tailscale Funnel)
+
+The microphone needs HTTPS, so the service is published with [Tailscale Funnel](https://tailscale.com/kb/1223/funnel): a free `*.ts.net` address with a real certificate, no domain and no open router port.
+
+```bash
+# on the Pi, once (needs sudo): install Tailscale, then log in and let your user control it
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up                      # prints a login link
+sudo tailscale set --operator=$USER
+# then, without sudo
+tailscale funnel --bg 8765             # first run prints a link to enable Funnel/HTTPS in the admin page
+```
+
+Anyone on the internet can open the address, so the passcode is the only gate. The first lookup of a brand-new name can take a while to appear in public DNS; try again from another network if it does not resolve.
 
 ## Limits
 

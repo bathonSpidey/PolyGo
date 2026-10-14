@@ -94,7 +94,8 @@ async def lifespan(app):
     engine._kill()
 
 
-app = FastAPI(lifespan=lifespan)
+# No auto-generated API docs: the app is reachable from the internet, so don't describe it to strangers.
+app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 class Req(BaseModel):
