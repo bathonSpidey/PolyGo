@@ -1,5 +1,5 @@
 """AutoTranslate API: one persistent Claude session behind a small web service."""
-import asyncio, hmac, os, time
+import asyncio, hmac, os, re, time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
@@ -20,6 +20,7 @@ def _read_passcode():
         return ""
 
 
+NON_ASCII = re.compile(r"[^\x00-\x7F]")
 PASSCODE = _read_passcode()     # kept out of git; if missing, the API refuses to work (fail closed)
 fail_lock = asyncio.Lock()
 
@@ -51,13 +52,13 @@ class Engine:
         self.s = None
         self.turns = 0
 
-    async def _call(self, a, b, text, script=False):
+    async def _call(self, a, b, text, script=False, tone="auto", latin_only=False):
         if self.s is None:
             self.s = translator.Session()
             self.restarts += 1
         try:
             r = await asyncio.wait_for(
-                asyncio.to_thread(self.s.translate_pair, a, b, text, script), TIMEOUT)
+                asyncio.to_thread(self.s.translate_pair, a, b, text, script, tone, latin_only), TIMEOUT)
         except Exception:
             self._kill()
             raise
@@ -66,9 +67,9 @@ class Engine:
             self._kill()
         return r
 
-    async def translate(self, a, b, text, script=False):
+    async def translate(self, a, b, text, script=False, tone="auto", latin_only=False):
         async with self.lock:
-            return await self._call(a, b, text, script)
+            return await self._call(a, b, text, script, tone, latin_only)
 
     async def warm(self):
         async with self.lock:
@@ -101,6 +102,7 @@ class Req(BaseModel):
     b: str
     text: str
     script: bool = False    # write Assamese output in Assamese script instead of Latin letters
+    tone: str = "formal"    # formal (apuni/Sie), informal (tumi/du) or auto (mirror the speaker)
 
 
 @app.post("/api/auth", dependencies=[Depends(require_auth)])
@@ -115,15 +117,27 @@ async def api_translate(r: Req):
         raise HTTPException(400, "bad language pair")
     if not text or len(text) > 600:
         raise HTTPException(400, "text must be 1-600 characters")
+    if r.tone not in ("formal", "informal", "auto"):
+        raise HTTPException(400, "bad tone")
     t0 = time.time()
     try:
-        res = await engine.translate(r.a, r.b, text, r.script)
+        res = await engine.translate(r.a, r.b, text, r.script, r.tone)
     except Exception as e:
         raise HTTPException(503, f"translator failed ({type(e).__name__}); try again")
     ok, frm = res["ok"], res["from"]
     if ok and frm not in (r.a, r.b):
         ok = False                  # model said ok but did not name a valid source language
     to = (r.b if frm == r.a else r.a) if ok else "English"
+    if ok and to == "Assamese" and not r.script and NON_ASCII.search(res["t"]):
+        # Latin-letter Assamese must be plain ASCII; a stray Devanagari/Bengali character means a glitch.
+        try:
+            res = await engine.translate(r.a, r.b, text, r.script, r.tone, latin_only=True)
+            ok, frm = res["ok"] and res["from"] in (r.a, r.b), res["from"]
+            to = (r.b if frm == r.a else r.a) if ok else "English"
+        except Exception:
+            ok, to = False, "English"
+        if ok and to == "Assamese" and NON_ASCII.search(res["t"]):
+            ok, to = False, "English"   # still broken: show it as "not sure" rather than as fact
     return {"t": res["t"], "ok": ok, "from": frm if frm in (r.a, r.b) else None, "to": to,
             "ms": int((time.time() - t0) * 1000)}
 

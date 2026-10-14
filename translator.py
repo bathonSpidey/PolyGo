@@ -47,9 +47,15 @@ class Session:
     def translate(self, src, tgt, text):
         return self.ask(f"[{src} -> {tgt}] {text}")
 
-    def translate_pair(self, a, b, text, assamese_script=False):
-        tag = "[assamese-output=script] " if assamese_script else ""
-        return self.ask(f"[{a} <-> {b}] {tag}{text}")
+    def translate_pair(self, a, b, text, assamese_script=False, tone="auto", latin_only=False):
+        tags = ""
+        if assamese_script:
+            tags += "[assamese-output=script] "
+        if tone in ("formal", "informal"):      # "auto" = no tag: mirror the speaker
+            tags += f"[tone={tone}] "
+        if latin_only:                          # retry after a stray non-Latin character
+            tags += "[latin-only] "
+        return self.ask(f"[{a} <-> {b}] {tags}{text}")
 
     def close(self):
         self.p.stdin.close()

@@ -68,6 +68,11 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
   <h1>Family Translator</h1>
   <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
   <button class="ghost" id="scr"></button>
+  <label class="auto">Tone <select id="tone" aria-label="Tone of address">
+    <option value="formal">Formal (apuni / Sie)</option>
+    <option value="informal">Informal (tumi / du)</option>
+    <option value="auto">Match the speaker</option>
+  </select></label>
   <label class="auto"><input type="checkbox" id="auto"> Auto-play</label>
   <button class="ghost" id="reset" title="Start a fresh conversation">New</button>
 </header>
@@ -146,6 +151,10 @@ const showScr=()=>{
 };
 showScr();
 scrBtn.onclick=()=>{ script=!script; put("script",script?"1":"0"); showScr(); };
+// How people are addressed in the translation: formal (default), informal, or match the speaker.
+const toneEl=$("#tone");
+toneEl.value=["formal","informal","auto"].includes(get("tone","formal"))?get("tone","formal"):"formal";
+toneEl.onchange=()=>put("tone",toneEl.value);
 const auto=$("#auto");
 auto.checked=get("auto","1")==="1";
 auto.onchange=()=>put("auto",auto.checked?"1":"0");
@@ -243,7 +252,7 @@ async function send(via){
   unlockSpeech();
   const ui=add(text);
   try{
-    const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script})});
+    const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script,tone:toneEl.value})});
     const d=await r.json();
     if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); }
     if(!r.ok) throw new Error(d.detail||r.status);
