@@ -21,6 +21,7 @@ def _read_passcode():
 
 
 NON_ASCII = re.compile(r"[^\x00-\x7F]")
+SCRIPT_CHARS = re.compile(r"[ঀ-৿]")      # the Bengali-Assamese script block
 PASSCODE = _read_passcode()     # kept out of git; if missing, the API refuses to work (fail closed)
 fail_lock = asyncio.Lock()
 
@@ -52,13 +53,13 @@ class Engine:
         self.s = None
         self.turns = 0
 
-    async def _call(self, a, b, text, script=False, tone="auto", latin_only=False):
+    async def _call(self, a, b, text, script=False, tone="auto", latin_only=False, also_script=False):
         if self.s is None:
             self.s = translator.Session()
             self.restarts += 1
         try:
             r = await asyncio.wait_for(
-                asyncio.to_thread(self.s.translate_pair, a, b, text, script, tone, latin_only), TIMEOUT)
+                asyncio.to_thread(self.s.translate_pair, a, b, text, script, tone, latin_only, also_script), TIMEOUT)
         except Exception:
             self._kill()
             raise
@@ -67,9 +68,9 @@ class Engine:
             self._kill()
         return r
 
-    async def translate(self, a, b, text, script=False, tone="auto", latin_only=False):
+    async def translate(self, a, b, text, script=False, tone="auto", latin_only=False, also_script=False):
         async with self.lock:
-            return await self._call(a, b, text, script, tone, latin_only)
+            return await self._call(a, b, text, script, tone, latin_only, also_script)
 
     async def warm(self):
         async with self.lock:
@@ -104,6 +105,7 @@ class Req(BaseModel):
     text: str
     script: bool = False    # write Assamese output in Assamese script instead of Latin letters
     tone: str = "formal"    # formal (apuni/Sie), informal (tumi/du) or auto (mirror the speaker)
+    speak_script: bool = False  # also return the Assamese in script, for a phone with an Assamese/Bengali voice
 
 
 @app.post("/api/auth", dependencies=[Depends(require_auth)])
@@ -122,7 +124,7 @@ async def api_translate(r: Req):
         raise HTTPException(400, "bad tone")
     t0 = time.time()
     try:
-        res = await engine.translate(r.a, r.b, text, r.script, r.tone)
+        res = await engine.translate(r.a, r.b, text, r.script, r.tone, also_script=r.speak_script)
     except Exception as e:
         raise HTTPException(503, f"translator failed ({type(e).__name__}); try again")
     ok, frm = res["ok"], res["from"]
@@ -132,14 +134,19 @@ async def api_translate(r: Req):
     if ok and to == "Assamese" and not r.script and NON_ASCII.search(res["t"]):
         # Latin-letter Assamese must be plain ASCII; a stray Devanagari/Bengali character means a glitch.
         try:
-            res = await engine.translate(r.a, r.b, text, r.script, r.tone, latin_only=True)
+            res = await engine.translate(r.a, r.b, text, r.script, r.tone, latin_only=True,
+                                         also_script=r.speak_script)
             ok, frm = res["ok"] and res["from"] in (r.a, r.b), res["from"]
             to = (r.b if frm == r.a else r.a) if ok else "English"
         except Exception:
             ok, to = False, "English"
         if ok and to == "Assamese" and NON_ASCII.search(res["t"]):
             ok, to = False, "English"   # still broken: show it as "not sure" rather than as fact
-    return {"t": res["t"], "ok": ok, "from": frm if frm in (r.a, r.b) else None, "to": to,
+    n = res.get("n")                # Assamese script for speech; only trusted if it really is script
+    if not (ok and to == "Assamese" and not r.script and r.speak_script and isinstance(n, str)
+            and SCRIPT_CHARS.search(n) and len(n) <= 1200):
+        n = None
+    return {"t": res["t"], "n": n, "ok": ok, "from": frm if frm in (r.a, r.b) else None, "to": to,
             "ms": int((time.time() - t0) * 1000)}
 
 

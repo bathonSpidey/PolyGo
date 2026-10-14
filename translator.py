@@ -22,8 +22,9 @@ def parse(raw):
         except json.JSONDecodeError:
             continue
         if isinstance(d, dict) and "t" in d:
-            return {"t": str(d.get("t", "")).strip(), "ok": bool(d.get("ok", False)), "from": d.get("from")}
-    return {"t": raw.strip(), "ok": False, "from": None}
+            return {"t": str(d.get("t", "")).strip(), "ok": bool(d.get("ok", False)), "from": d.get("from"),
+                    "n": d.get("n") if isinstance(d.get("n"), str) else None}
+    return {"t": raw.strip(), "ok": False, "from": None, "n": None}
 
 class Session:
     """One long-running claude process; each translation is a new turn."""
@@ -47,10 +48,12 @@ class Session:
     def translate(self, src, tgt, text):
         return self.ask(f"[{src} -> {tgt}] {text}")
 
-    def translate_pair(self, a, b, text, assamese_script=False, tone="auto", latin_only=False):
+    def translate_pair(self, a, b, text, assamese_script=False, tone="auto", latin_only=False, also_script=False):
         tags = ""
         if assamese_script:
             tags += "[assamese-output=script] "
+        elif also_script:                       # Latin text for the screen + script for an Assamese/Bengali voice
+            tags += "[also-script] "
         if tone in ("formal", "informal"):      # "auto" = no tag: mirror the speaker
             tags += f"[tone={tone}] "
         if latin_only:                          # retry after a stray non-Latin character

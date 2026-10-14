@@ -91,7 +91,8 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 <script>
 const LANGS=["Assamese","German","English","Hindi"];
 // Assamese is written in Latin letters, so an Indian-English voice reads it best.
-const VOICE_TAGS={Assamese:["en-IN","hi-IN","en-GB","en-US"],AssameseScript:["as-IN","bn-IN","hi-IN","en-IN"],German:["de-DE","de-AT","de-CH"],English:["en-US","en-GB","en-IN"],Hindi:["hi-IN","en-IN"]};
+// AssameseScript = Assamese written in script; only an Assamese or Bengali voice can read it.
+const VOICE_TAGS={Assamese:["en-IN","hi-IN","en-GB","en-US"],AssameseScript:["as-IN","bn-IN"],German:["de-DE","de-AT","de-CH"],English:["en-US","en-GB","en-IN"],Hindi:["hi-IN","en-IN"]};
 const $=s=>document.querySelector(s);
 const get=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}};
 const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
@@ -121,13 +122,18 @@ function pickVoice(lang){
   const primary=(tags[0]||"en").split("-")[0].toLowerCase();   // any voice in the same language
   return voices.find(v=>norm(v).split("-")[0]===primary) || null;
 }
-function speak(text,lang,btn){
-  if(!canSpeak){ btn.title="This browser cannot speak"; return; }
+// A voice that can read Assamese script: Assamese first, then Bengali (same alphabet).
+function scriptVoice(){ return pickVoice("AssameseScript"); }
+function speak(text,lang,btn,meta){
+  const note=d=>{ btn.title=d; if(meta) meta.textContent=(meta.dataset.base||"")+" · 🔊 "+d; };
+  if(!canSpeak){ note("this browser cannot speak"); return; }
+  const v=pickVoice(lang);
+  if(lang==="AssameseScript" && !v){ note("no Assamese or Bengali voice on this phone"); return; }
   speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text), v=pickVoice(lang);
+  const u=new SpeechSynthesisUtterance(text);
   if(v){ u.voice=v; u.lang=v.lang; } else { u.lang=(VOICE_TAGS[lang]||["en-US"])[0]; }
   u.rate=parseFloat(rate.value)||0.75;
-  btn.title=(v?v.name+" ("+v.lang+")":"default voice ("+u.lang+")");
+  note(v?v.name+" ("+v.lang+")":"default voice ("+u.lang+")");
   speechSynthesis.speak(u);
 }
 
@@ -252,18 +258,25 @@ async function send(via){
   unlockSpeech();
   const ui=add(text);
   try{
-    const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script,tone:toneEl.value})});
+    const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script,tone:toneEl.value,speak_script:!script&&!!scriptVoice()})});
     const d=await r.json();
     if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); }
     if(!r.ok) throw new Error(d.detail||r.status);
     ui.t.textContent=d.t;
     ui.m.className="msg "+(d.from===la.value?"a":d.from===lb.value?"b":"x");
     ui.x.textContent=(d.from||"?")+" → "+d.to+" · "+(d.ms/1000).toFixed(1)+"s"+(via?" · "+via:"");
+    ui.x.dataset.base=ui.x.textContent;
     const p=document.createElement("button"); p.className="play"; p.textContent="▶"; p.setAttribute("aria-label","Play translation");
-    const voiceFor=(d.to==="Assamese"&&script)?"AssameseScript":d.to;   // script text needs an Assamese-capable voice
-    p.onclick=()=>speak(d.t,voiceFor,p); ui.row.append(p);
+    // What to say, and with which voice. Latin Assamese is shown on screen; if the server also sent the
+    // script and this phone has an Assamese/Bengali voice, speak the script; otherwise the English voice reads the Latin text.
+    let say=d.t, voiceFor=d.to;
+    if(d.to==="Assamese"){
+      if(script) voiceFor="AssameseScript";                       // script is what is shown, needs a script voice
+      else if(d.n && scriptVoice()){ say=d.n; voiceFor="AssameseScript"; }
+    }
+    p.onclick=()=>speak(say,voiceFor,p,ui.x); ui.row.append(p);
     if(!d.ok){const w=document.createElement("div"); w.className="warn"; w.textContent="Not sure — showing the meaning in English"; ui.m.append(w);}
-    else if(auto.checked) speak(d.t,voiceFor,p);
+    else if(auto.checked) speak(say,voiceFor,p,ui.x);
   }catch(e){ ui.m.classList.add("err"); ui.t.textContent="Could not translate. Please try again."; ui.x.textContent=String(e.message||e); }
   go.disabled=false; log.scrollTop=log.scrollHeight; inp.focus();
 }
