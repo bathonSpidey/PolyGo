@@ -1,20 +1,32 @@
-"""Translation engine: wraps Claude Code. Text in, dict out: {t, ok, from}."""
+"""Translation engine: wraps Claude Code. Text in, dict out: {t, ok, from, n}."""
 import json, os, re, subprocess
 
+import corrections
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-SYSTEM_PROMPT = open(os.path.join(HERE, "system_prompt.txt"), encoding="utf-8").read()
-# Optional, private (git-ignored): the family's own words, names and example sentences.
-_GLOSSARY = os.path.join(HERE, "glossary.txt")
-if os.path.exists(_GLOSSARY):
-    SYSTEM_PROMPT += ("\n\nFAMILY NOTES (written by the family, authoritative: follow them over your own guesses, "
-                      "and copy their spellings of Assamese words):\n"
-                      + open(_GLOSSARY, encoding="utf-8").read().strip() + "\n")
 CLAUDE = os.path.expanduser("~/.npm-global/bin/claude")
-FLAGS = ["--model", os.environ.get("AT_MODEL", "haiku"), "--tools", "", "--system-prompt", SYSTEM_PROMPT,
-         "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
+MODEL = os.environ.get("POLYGO_MODEL", "claude-sonnet-5-5")
+
+
+def build_system_prompt():
+    """Read fresh every time a session starts, so a saved correction applies from the next session on."""
+    prompt = open(os.path.join(HERE, "system_prompt.txt"), encoding="utf-8").read()
+    glossary = os.path.join(HERE, "glossary.txt")        # optional, private (git-ignored)
+    if os.path.exists(glossary):
+        prompt += ("\n\nFAMILY NOTES (written by the family, authoritative: follow them over your own guesses, "
+                   "and copy their spellings of Assamese words):\n"
+                   + open(glossary, encoding="utf-8").read().strip() + "\n")
+    return prompt + corrections.render()
+
+
+def _flags():
+    # No tools, no MCP servers, no slash commands: the session can only produce text.
+    return ["--model", MODEL, "--tools", "", "--system-prompt", build_system_prompt(),
+            "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
+
 
 def parse(raw):
-    """Extract {"t","ok","from"}. The model sometimes corrects itself mid-reply, so the LAST valid
+    """Extract {"t","ok","from","n"}. The model sometimes corrects itself mid-reply, so the LAST valid
     JSON object wins; if there is none, treat the reply as not-ok."""
     for m in reversed(re.findall(r"\{[^{}]*\}", raw)):
         try:
@@ -26,11 +38,12 @@ def parse(raw):
                     "n": d.get("n") if isinstance(d.get("n"), str) else None}
     return {"t": raw.strip(), "ok": False, "from": None, "n": None}
 
+
 class Session:
     """One long-running claude process; each translation is a new turn."""
     def __init__(self):
         self.p = subprocess.Popen(
-            [CLAUDE, "-p", *FLAGS, "--input-format", "stream-json",
+            [CLAUDE, "-p", *_flags(), "--input-format", "stream-json",
              "--output-format", "stream-json", "--verbose"],
             cwd=HERE, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, bufsize=1)

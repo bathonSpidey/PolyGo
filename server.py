@@ -1,9 +1,10 @@
-"""AutoTranslate API: one persistent Claude session behind a small web service."""
+"""PolyGo API: one persistent Claude session behind a small web service."""
 import asyncio, hmac, os, re, time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import corrections
 import translator
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -150,6 +151,44 @@ async def api_translate(r: Req):
             "ms": int((time.time() - t0) * 1000)}
 
 
+class Correction(BaseModel):
+    frm: str                # language of the original text
+    to: str                 # language of the translation
+    tone: str = "auto"
+    form: str = ""          # "Latin letters" / "Assamese script" when the translation is Assamese
+    text: str               # what was said
+    wrong: str = ""         # what PolyGo answered
+    right: str              # what it should have said
+    note: str = ""
+
+
+@app.post("/api/correct", dependencies=[Depends(require_auth)])
+async def api_correct(c: Correction):
+    if c.frm not in LANGS or c.to not in LANGS or c.frm == c.to:
+        raise HTTPException(400, "bad language pair")
+    if c.tone not in ("formal", "informal", "auto"):
+        raise HTTPException(400, "bad tone")
+    try:
+        entry, count = corrections.add(c.frm, c.to, c.tone, c.form, c.text, c.wrong, c.right, c.note)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    await engine.reset()            # a fresh session reads the new correction
+    return {"ok": True, "id": entry["id"], "count": count}
+
+
+@app.get("/api/corrections", dependencies=[Depends(require_auth)])
+async def api_corrections():
+    return {"items": corrections.listing(30), "count": corrections.count()}
+
+
+@app.delete("/api/corrections/{cid}", dependencies=[Depends(require_auth)])
+async def api_delete_correction(cid: str):
+    if not corrections.remove(cid):
+        raise HTTPException(404, "no such correction")
+    await engine.reset()
+    return {"ok": True}
+
+
 @app.post("/api/reset", dependencies=[Depends(require_auth)])
 async def api_reset():
     await engine.reset()
@@ -160,7 +199,7 @@ async def api_reset():
 async def api_health(x_passcode: str = Header(default="")):
     if not _passcode_ok(x_passcode):
         return {"ok": True}         # public: just "the service is up"
-    return {"ok": True, "model": os.environ.get("AT_MODEL", "haiku"), "turns": engine.turns,
+    return {"ok": True, "model": translator.MODEL, "turns": engine.turns, "corrections": corrections.count(),
             "restarts": engine.restarts, "engine_running": engine.s is not None}
 
 

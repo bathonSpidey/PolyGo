@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Family Translator</title>
+<title>PolyGo</title>
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--mute:#6b6b70;--a:#c2410c;--b:#1d4ed8;--warn:#92400e;--warnbg:#fef3c7;--line:#e3e1db;--btn:#1d4ed8}
 @media(prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--ink:#f1f1f3;--mute:#9a9aa2;--a:#fb923c;--b:#60a5fa;--warn:#fde68a;--warnbg:#4a3a12;--line:#2f2f35;--btn:#2563eb}}
@@ -44,6 +44,12 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 .cfg label{display:inline-flex;align-items:center;gap:6px;margin:6px 12px 0 0}
 #go{width:100%;margin-top:8px;border:0;border-radius:12px;padding:14px 8px;font-weight:600;font-size:18px;color:#fff;background:var(--btn)}
 #go:disabled{opacity:.45}
+.wrongbtn{padding:6px 10px;font-size:14px}
+.fix{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.fix label{font-size:14px;color:var(--mute)}
+.fix input{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);width:100%}
+.savefix{border:0;border-radius:10px;padding:10px 14px;font-weight:600;color:#fff;background:var(--btn)}
+.fixitem{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:6px;font-size:14px;overflow-wrap:anywhere}
 #lock{position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
 #lock[hidden]{display:none}
 .lockcard{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px}
@@ -57,15 +63,15 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 <body>
 <div id="lock" hidden>
   <form class="lockcard" id="lockform">
-    <h2>Family passcode</h2>
-    <p>Enter the passcode once. This phone will remember it.</p>
+    <h2>PolyGo</h2>
+    <p>Enter the family passcode once. This phone will remember it.</p>
     <input id="pass" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Passcode" aria-label="Family passcode">
     <div id="lockmsg" role="alert"></div>
     <button id="lockgo" type="submit">Continue</button>
   </form>
 </div>
 <header>
-  <h1>Family Translator</h1>
+  <h1>PolyGo</h1>
   <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
   <button class="ghost" id="scr"></button>
   <label class="auto">Tone <select id="tone" aria-label="Tone of address">
@@ -85,7 +91,9 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
   <details class="cfg"><summary>Voice settings</summary>
     <div id="cfg"></div>
     <label>Speaking speed <input type="range" id="rate" min="0.5" max="1.2" step="0.05"> <span id="rateval"></span></label>
-    <div><button class="ghost" id="forget" type="button" style="margin-top:8px">Forget passcode on this phone</button></div>
+    <div style="margin-top:8px"><button class="ghost" id="showfix" type="button">Saved corrections</button>
+      <button class="ghost" id="forget" type="button">Forget passcode on this phone</button></div>
+    <div id="fixlist"></div>
   </details>
 </footer>
 <script>
@@ -241,6 +249,50 @@ $("#lockform").onsubmit=async e=>{
 $("#forget").onclick=()=>{ put("pass",""); passcode=""; showLock(""); };
 (async()=>{ if(!passcode){ showLock(""); return; } const res=await tryPass(passcode); if(res==="wrong"||res==="unset") showLock(res==="wrong"?"The passcode has changed. Please enter the new one.":"The translator has no passcode set up yet."); })();
 
+/* ---- "Wrong?" corrections: the family teaches PolyGo as we go ---- */
+function openFix(ui,ctx){
+  if(ui.fix){ ui.fix.remove(); ui.fix=null; return; }
+  const box=document.createElement("div"); box.className="fix";
+  const lab=document.createElement("label"); lab.textContent="What should it say?";
+  const ta=document.createElement("textarea"); ta.value=ctx.wrong; ta.rows=2;
+  const note=document.createElement("input"); note.type="text"; note.maxLength=200; note.placeholder="Why? (optional)";
+  const row=document.createElement("div"); row.className="row";
+  const save=document.createElement("button"); save.type="button"; save.className="savefix"; save.textContent="Save correction";
+  const cancel=document.createElement("button"); cancel.type="button"; cancel.className="ghost"; cancel.textContent="Cancel";
+  const msg=document.createElement("div"); msg.className="meta";
+  row.append(save,cancel); box.append(lab,ta,note,row,msg); ui.m.append(box); ui.fix=box; ta.focus();
+  cancel.onclick=()=>{ box.remove(); ui.fix=null; };
+  save.onclick=async()=>{
+    const right=ta.value.trim();
+    if(!right||right===ctx.wrong){ msg.textContent="Please change the translation to what it should say."; return; }
+    save.disabled=true; msg.textContent="Saving…";
+    try{
+      const r=await fetch("/api/correct",{method:"POST",headers:authHeaders(),body:JSON.stringify({...ctx,right,note:note.value.trim()})});
+      const d=await r.json();
+      if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); }
+      if(!r.ok) throw new Error(d.detail||r.status);
+      box.replaceChildren(Object.assign(document.createElement("div"),{className:"meta",textContent:"Thanks. PolyGo will use this from now on ("+d.count+" saved)."}));
+    }catch(e){ save.disabled=false; msg.textContent="Could not save: "+(e.message||e); }
+  };
+}
+async function loadFixes(){
+  const box=$("#fixlist"); box.textContent="Loading…";
+  try{
+    const r=await fetch("/api/corrections",{headers:authHeaders()}); const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||r.status);
+    box.replaceChildren();
+    if(!d.items.length){ box.textContent="No corrections yet."; return; }
+    for(const it of d.items){
+      const row=document.createElement("div"); row.className="fixitem";
+      const t=document.createElement("span"); t.textContent=it.text+"  →  "+it.right;
+      const x=document.createElement("button"); x.type="button"; x.className="ghost"; x.textContent="✕"; x.setAttribute("aria-label","Delete this correction");
+      x.onclick=async()=>{ x.disabled=true; try{ await fetch("/api/corrections/"+encodeURIComponent(it.id),{method:"DELETE",headers:authHeaders()}); }catch(e){} loadFixes(); };
+      row.append(t,x); box.append(row);
+    }
+  }catch(e){ box.textContent="Could not load: "+(e.message||e); }
+}
+$("#showfix").onclick=loadFixes;
+
 /* ---- chat ---- */
 function add(orig){
   $("#empty")?.remove();
@@ -275,6 +327,12 @@ async function send(via){
       else if(d.n && scriptVoice()){ say=d.n; voiceFor="AssameseScript"; }
     }
     p.onclick=()=>speak(say,voiceFor,p,ui.x); ui.row.append(p);
+    if(d.ok){   // only an answer PolyGo was sure about can be marked wrong
+      const w=document.createElement("button"); w.type="button"; w.className="ghost wrongbtn"; w.textContent="Wrong?";
+      w.onclick=()=>openFix(ui,{frm:d.from,to:d.to,tone:toneEl.value,text,wrong:d.t,
+        form:d.to==="Assamese"?(script?"Assamese script":"Latin letters"):""});
+      ui.row.append(w);
+    }
     if(!d.ok){const w=document.createElement("div"); w.className="warn"; w.textContent="Not sure — showing the meaning in English"; ui.m.append(w);}
     else if(auto.checked) speak(say,voiceFor,p,ui.x);
   }catch(e){ ui.m.classList.add("err"); ui.t.textContent="Could not translate. Please try again."; ui.x.textContent=String(e.message||e); }

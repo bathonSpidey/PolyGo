@@ -4,7 +4,7 @@ After=network-online.target
 
 [Service]
 WorkingDirectory=%h/polygo
-Environment=AT_MODEL=claude-sonnet-5-5
+Environment=POLYGO_MODEL=claude-sonnet-5-5
 Environment=PATH=%h/.local/node/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
 # Localhost only: the public link (Tailscale Funnel) proxies to it, and nothing else on a network can reach it.
 ExecStart=%h/polygo/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8765

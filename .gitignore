@@ -7,3 +7,5 @@ __pycache__/
 *.pem
 passcode.txt
 glossary.txt
+corrections.jsonl
+corrections.jsonl.tmp
