@@ -14,14 +14,15 @@ FLAGS = ["--model", os.environ.get("AT_MODEL", "haiku"), "--tools", "", "--syste
          "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
 
 def parse(raw):
-    """Extract {"t","ok","from"}; if the model broke format, treat as not-ok."""
-    m = re.search(r"\{.*\}", raw, re.S)
-    if m:
+    """Extract {"t","ok","from"}. The model sometimes corrects itself mid-reply, so the LAST valid
+    JSON object wins; if there is none, treat the reply as not-ok."""
+    for m in reversed(re.findall(r"\{[^{}]*\}", raw)):
         try:
-            d = json.loads(m.group(0))
-            return {"t": str(d.get("t", "")).strip(), "ok": bool(d.get("ok", False)), "from": d.get("from")}
+            d = json.loads(m)
         except json.JSONDecodeError:
-            pass
+            continue
+        if isinstance(d, dict) and "t" in d:
+            return {"t": str(d.get("t", "")).strip(), "ok": bool(d.get("ok", False)), "from": d.get("from")}
     return {"t": raw.strip(), "ok": False, "from": None}
 
 class Session:
