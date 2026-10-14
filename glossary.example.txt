@@ -1,0 +1,17 @@
+# Copy this file to glossary.txt and fill it in. glossary.txt stays private (it is git-ignored).
+# The translator reads it as-is and follows it over its own guesses. Keep it under ~100 lines.
+# Write Assamese the way YOU type it (your spelling, your style).
+
+## PEOPLE: names stay unchanged; say who they are
+<name> = <who: e.g. my father / my wife's mother>, <language they speak>
+
+## HOW PEOPLE ADDRESS EACH OTHER (casual or formal?)
+<who> speaks to <who>: <casual / formal>   (e.g. Assamese tumi / apuni, German du / Sie)
+
+## FAMILY WORDS: relatives and everyday words, and what they mean in German
+<assamese word> = <German meaning>
+<assamese word> = <German meaning>
+
+## EXAMPLE SENTENCES: the more real ones the better
+Assamese: bhat khali? | German: Hast du Reis gegessen? | tone: casual
+Assamese: <your sentence> | German: <meaning> | tone: <casual / formal>

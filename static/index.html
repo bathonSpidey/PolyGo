@@ -44,9 +44,26 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 .cfg label{display:inline-flex;align-items:center;gap:6px;margin:6px 12px 0 0}
 #go{width:100%;margin-top:8px;border:0;border-radius:12px;padding:14px 8px;font-weight:600;font-size:18px;color:#fff;background:var(--btn)}
 #go:disabled{opacity:.45}
+#lock{position:fixed;inset:0;z-index:10;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+#lock[hidden]{display:none}
+.lockcard{width:100%;max-width:380px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:12px}
+.lockcard h2{margin:0;font-size:22px}
+.lockcard p{margin:0;color:var(--mute);font-size:16px}
+.lockcard input{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:18px;width:100%}
+.lockcard button{border:0;border-radius:12px;padding:14px;font-weight:600;font-size:18px;color:#fff;background:var(--btn)}
+#lockmsg{color:#b91c1c;font-size:15px;min-height:1.3em}
 </style>
 </head>
 <body>
+<div id="lock" hidden>
+  <form class="lockcard" id="lockform">
+    <h2>Family passcode</h2>
+    <p>Enter the passcode once. This phone will remember it.</p>
+    <input id="pass" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Passcode" aria-label="Family passcode">
+    <div id="lockmsg" role="alert"></div>
+    <button id="lockgo" type="submit">Continue</button>
+  </form>
+</div>
 <header>
   <h1>Family Translator</h1>
   <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
@@ -63,6 +80,7 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
   <details class="cfg"><summary>Voice settings</summary>
     <div id="cfg"></div>
     <label>Speaking speed <input type="range" id="rate" min="0.5" max="1.2" step="0.05"> <span id="rateval"></span></label>
+    <div><button class="ghost" id="forget" type="button" style="margin-top:8px">Forget passcode on this phone</button></div>
   </details>
 </footer>
 <script>
@@ -184,6 +202,30 @@ function toggleMic(side){
 }
 $("#mica").onclick=()=>toggleMic("a"); $("#micb").onclick=()=>toggleMic("b");
 
+/* ---- passcode (asked once per phone; the server checks it on every call) ---- */
+let passcode=get("pass","");
+const lockEl=$("#lock"), lockMsg=$("#lockmsg"), passEl=$("#pass");
+const authHeaders=()=>({"Content-Type":"application/json","X-Passcode":passcode});
+function showLock(msg){ lockMsg.textContent=msg||""; lockEl.hidden=false; passEl.value=""; setTimeout(()=>passEl.focus(),50); }
+async function tryPass(p){
+  try{
+    const r=await fetch("/api/auth",{method:"POST",headers:{"X-Passcode":p}});
+    if(r.ok) return "ok";
+    return r.status===401?"wrong":(r.status===503?"unset":"error");
+  }catch(e){ return "offline"; }
+}
+$("#lockform").onsubmit=async e=>{
+  e.preventDefault();
+  const p=passEl.value.trim(); if(!p) return;
+  $("#lockgo").disabled=true; lockMsg.textContent="Checking…";
+  const res=await tryPass(p);
+  $("#lockgo").disabled=false;
+  if(res==="ok"){ passcode=p; put("pass",p); lockEl.hidden=true; inp.focus(); }
+  else lockMsg.textContent={wrong:"That passcode is not right. Please try again.",unset:"The translator has no passcode set up yet.",offline:"Cannot reach the translator. Check your connection.",error:"Something went wrong. Please try again."}[res];
+};
+$("#forget").onclick=()=>{ put("pass",""); passcode=""; showLock(""); };
+(async()=>{ if(!passcode){ showLock(""); return; } const res=await tryPass(passcode); if(res==="wrong"||res==="unset") showLock(res==="wrong"?"The passcode has changed. Please enter the new one.":"The translator has no passcode set up yet."); })();
+
 /* ---- chat ---- */
 function add(orig){
   $("#empty")?.remove();
@@ -201,8 +243,9 @@ async function send(via){
   unlockSpeech();
   const ui=add(text);
   try{
-    const r=await fetch("/api/translate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({a:la.value,b:lb.value,text,script})});
+    const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script})});
     const d=await r.json();
+    if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); }
     if(!r.ok) throw new Error(d.detail||r.status);
     ui.t.textContent=d.t;
     ui.m.className="msg "+(d.from===la.value?"a":d.from===lb.value?"b":"x");
@@ -219,7 +262,7 @@ go.onclick=()=>send();
 inp.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } });
 $("#reset").onclick=async()=>{
   if(!confirm("Start a new conversation?")) return;
-  try{await fetch("/api/reset",{method:"POST"});}catch(e){}
+  try{await fetch("/api/reset",{method:"POST",headers:authHeaders()});}catch(e){}
   if(canSpeak) speechSynthesis.cancel();
   log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:"New conversation. Type what was said in either language."}));
 };

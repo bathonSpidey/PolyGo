@@ -60,7 +60,9 @@ The Zero has one Wi-Fi radio, so *setup mode* (box is the hotspot) and *normal m
 - [ ] **Zero 2W:** install it, measure memory and latency against the Pi 4 (about 2 s per sentence)
 - [ ] **Wi-Fi onboarding** flow above, tested outside the house
 - [ ] iPhone test (needs HTTPS)
-- [ ] Access passcode
+- [x] Access passcode (shared family passcode, fail closed)
+- [ ] Family glossary: real phrases, names and spellings (`glossary.txt`, private)
+- [ ] Public HTTPS link (Tailscale Funnel) and iPhone mic test
 - [ ] Belt enclosure
 
 ## Open questions
@@ -82,11 +84,17 @@ python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 AT_MODEL=claude-sonnet-5-5 ./venv/bin/uvicorn server:app --host 0.0.0.0 --port 8765
 ```
 
-Open `http://<host>:8765`. A systemd user unit is in `deploy/`. For mic testing on Chrome over plain `http`, allow the address in `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+Create the passcode first (the server refuses to translate without one), then open `http://<host>:8765`:
+
+```bash
+echo "pick-a-passcode-here" > passcode.txt && chmod 600 passcode.txt   # git-ignored
+```
+
+Optional: copy `glossary.example.txt` to `glossary.txt` and fill in your family's words, names and example sentences; the translator follows them over its own guesses (also git-ignored). A systemd user unit is in `deploy/polygo-api.service`. For mic testing on Chrome over plain `http`, allow the address in `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
 
 ## Limits
 
-- **No login yet:** anyone who can reach the port can use it. Keep it on a trusted network.
+- **Passcode, not accounts:** the page is public but every translate/reset call needs the family passcode (header `X-Passcode`), asked once per phone. Wrong guesses are slowed to about one per second overall; a correct one is never slowed. If no passcode file exists, the API refuses everything (fail closed). It is one shared secret, so treat it like a Wi-Fi password.
 - Chrome's recogniser sends audio to Google. Speech output uses the phone's installed voices; most phones have no Assamese voice, so Latin-letter Assamese is read by an Indian-English voice.
 - The engine is the Claude Code CLI, not the API. `translator.py` is the only file that touches it, so it can be swapped. Check Anthropic's current terms for how you may use it.
 - `MemoryMax` in the unit file is not enforced on every Pi setup.

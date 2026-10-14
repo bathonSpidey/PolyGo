@@ -3,6 +3,12 @@ import json, os, re, subprocess
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SYSTEM_PROMPT = open(os.path.join(HERE, "system_prompt.txt"), encoding="utf-8").read()
+# Optional, private (git-ignored): the family's own words, names and example sentences.
+_GLOSSARY = os.path.join(HERE, "glossary.txt")
+if os.path.exists(_GLOSSARY):
+    SYSTEM_PROMPT += ("\n\nFAMILY NOTES (written by the family, authoritative: follow them over your own guesses, "
+                      "and copy their spellings of Assamese words):\n"
+                      + open(_GLOSSARY, encoding="utf-8").read().strip() + "\n")
 CLAUDE = os.path.expanduser("~/.npm-global/bin/claude")
 FLAGS = ["--model", os.environ.get("AT_MODEL", "haiku"), "--tools", "", "--system-prompt", SYSTEM_PROMPT,
          "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]

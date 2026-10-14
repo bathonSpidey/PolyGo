@@ -1,0 +1,14 @@
+[Unit]
+Description=PolyGo API (family translator)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/polygo
+Environment=AT_MODEL=claude-sonnet-5-5
+Environment=PATH=%h/.local/node/bin:%h/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/polygo/venv/bin/uvicorn server:app --host 0.0.0.0 --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
