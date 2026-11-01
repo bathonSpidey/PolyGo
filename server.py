@@ -267,7 +267,8 @@ async def room_new(r: RoomNew):
     except Exception:
         rooms.ROOMS.pop(room.id, None)
         raise
-    return {"room": room.id, "pid": p.pid, "since": p.joined_event, "ceiling": rooms.ROOM_CEILING, **room.summary()}
+    return {"room": room.id, "pid": p.pid, "name": p.name, "since": p.joined_event, "ceiling": rooms.ROOM_CEILING,
+            **room.summary()}
 
 
 @app.get("/api/rooms/{rid}", dependencies=[Depends(require_auth)])
@@ -280,8 +281,8 @@ async def room_info(rid: str):
 async def room_join(rid: str, r: RoomJoin):
     room = rooms.get(rid)
     p = await room.join(r.name, r.lang, r.tone, r.pid)
-    return {"pid": p.pid, "since": p.joined_event, "creator": p.pid == room.creator, "ceiling": rooms.ROOM_CEILING,
-            **room.summary()}
+    return {"pid": p.pid, "name": p.name, "since": p.joined_event, "creator": p.pid == room.creator,
+            "ceiling": rooms.ROOM_CEILING, **room.summary()}
 
 
 @app.get("/api/rooms/{rid}/events", dependencies=[Depends(require_auth)])
@@ -295,7 +296,7 @@ async def room_send(rid: str, m: RoomMsg):
     p = room.person(m.pid)
     text = re.sub(r"\s+", " ", m.text).strip()
     room.check_send(p, text)
-    targets = room.languages_for(p)             # every other language someone present needs
+    targets = room.languages_for(p)             # every other language anyone in the room needs (asleep or not)
     t0 = time.time()
     tr, n, ok = {}, None, True
     if targets:
@@ -322,7 +323,7 @@ async def room_profile(rid: str, r: RoomProfile):
         if r.tone not in rooms.TONES:
             raise HTTPException(400, "unknown tone")
         p.tone = r.tone
-    if r.name:
+    if rooms.clean_name(r.name):
         p.name = rooms.clean_name(r.name)
     p.last_seen = time.time()
     return room.summary()

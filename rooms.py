@@ -13,7 +13,7 @@ ROOM_TTL = float(os.environ.get("POLYGO_ROOM_TTL_HOURS", "24")) * 3600      # a 
 ROOM_CEILING = max(2, int(os.environ.get("POLYGO_ROOM_MAX", "10")))         # largest allowed conversation
 DEFAULT_SIZE = 4
 MAX_ROOMS = 50
-ACTIVE_WINDOW = 90          # seconds a phone counts as present after its last check-in
+ACTIVE_WINDOW = float(os.environ.get("POLYGO_ROOM_ACTIVE_SECONDS", "90"))   # seconds a phone counts as present after its last check-in
 FORGET_AFTER = 600          # seconds of silence before a phone is dropped from the room
 MAX_TEXT = 600
 RATE_COUNT, RATE_WINDOW = 8, 30.0   # messages per person per window
@@ -29,8 +29,8 @@ class RoomError(Exception):
 
 
 def clean_name(value):
-    s = re.sub(r"\s+", " ", _CONTROL.sub(" ", str(value or ""))).strip()[:30]
-    return s or "Guest"
+    """One tidy line, at most 30 characters; empty if nothing usable was given (a name is optional)."""
+    return re.sub(r"\s+", " ", _CONTROL.sub(" ", str(value or ""))).strip()[:30]
 
 
 class Participant:
@@ -74,12 +74,21 @@ class Room:
 
     def summary(self):
         return {"max_size": self.max_size, "expires_in": max(0, int(self.expires - time.time())),
-                "people": [{"name": p.name, "lang": p.lang} for p in self.active()],
+                "people": [{"name": p.name, "lang": p.lang} for p in self.people.values()],
                 "closed": self.closed or time.time() >= self.expires}
 
     def languages_for(self, sender):
-        """Every other language someone present needs a translation into."""
-        return sorted({p.lang for p in self.active() if p.lang != sender.lang})
+        """Every other language someone IN THE ROOM needs a translation into. This counts everyone who has joined and
+        not left, not only phones that checked in a moment ago: a phone that is asleep or in another window must still
+        find the translation waiting when it comes back."""
+        return sorted({p.lang for p in self.people.values() if p.lang != sender.lang})
+
+    def guest_name(self):
+        taken = {p.name for p in self.people.values()}
+        n = 1
+        while f"Guest {n}" in taken:
+            n += 1
+        return f"Guest {n}"
 
     # ---- events ----
     async def publish(self, kind, **data):
@@ -104,8 +113,8 @@ class Room:
             out["translated"], out["ok"] = False, True       # nothing was translated for them, so nothing to doubt
         else:
             text = ev["tr"].get(p.lang) or ev["tr"].get("English")
-            if text is None:
-                out["text"], out["translated"], out["ok"] = ev["text"], False, False
+            if text is None:                       # no translation was made for this person: say so, do not pretend
+                out["text"], out["translated"], out["untranslated"] = ev["text"], False, True
             else:
                 out["text"] = text
                 if p.lang == "Assamese" and ev.get("n"):
@@ -124,11 +133,11 @@ class Room:
             raise RoomError(400, "unknown tone")
         p = self.people.get(pid) if pid else None
         if p:                                        # coming back after a reload or a dropped connection
-            p.name, p.lang, p.tone, p.last_seen = clean_name(name), lang, tone, time.time()
+            p.name, p.lang, p.tone, p.last_seen = clean_name(name) or p.name, lang, tone, time.time()
             return p
         if len(self.active()) >= self.max_size:
             raise RoomError(409, "this conversation is full")
-        p = Participant(clean_name(name), lang, tone)
+        p = Participant(clean_name(name) or self.guest_name(), lang, tone)
         self.people[p.pid] = p
         if self.creator is None:
             self.creator = p.pid

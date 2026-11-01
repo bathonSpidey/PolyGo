@@ -13,7 +13,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.45 system-ui,-ap
 header{display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 header h1{font-size:18px;margin:0;flex:1 1 auto}
 .pair{display:flex;align-items:center;gap:6px;color:var(--mute)}
-select,button,textarea{font:inherit;color:inherit}
+select,button,textarea,input{font:inherit;color:inherit}   /* text boxes must use the page's text colour, or typing is black on dark */
 select{padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card)}
 .auto{display:flex;align-items:center;gap:6px;color:var(--mute);font-size:15px}
 .auto input{width:20px;height:20px}
@@ -120,6 +120,7 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
 .sheetcard .primary{background:var(--btn);color:#fff;border:0;font-weight:700}
 .sheetcard .primary:disabled{opacity:.5}
 .sheetcard input[type=text]{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.05em;width:100%}
+.sheetcard input,.sheetcard select,.lockcard input,.fix input{color:var(--ink)}      /* typed text in the main colour, not the label's grey */
 .rp{padding:6px 0;border-bottom:1px solid var(--line);font-size:.9em}
 #rqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(60vw,220px);height:auto;aspect-ratio:1/1;flex:none}
 </style>
@@ -184,7 +185,7 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
 <div id="startsheet" hidden>
   <div class="sheetcard">
     <h2>Start a shared conversation</h2>
-    <label class="invf">Your name<input id="stname" type="text" maxlength="30" autocomplete="off"></label>
+    <label class="invf">Your name (optional)<input id="stname" type="text" maxlength="30" autocomplete="off"></label>
     <label class="invf">Your language<select id="stlang"></select></label>
     <label class="invf">Most phones in it<select id="stsize"></select></label>
     <p class="note">The link works for 24 hours, and everyone who opens it needs the family passcode. Nothing is saved: messages exist only while the conversation is open.</p>
@@ -272,6 +273,7 @@ const invite=(()=>{
     const z=parseFloat(h.get("z")); if(z>=0.8&&z<=1.9) put("fs",String(z));
     out.k=(h.get("k")||"").trim();
     out.room=(h.get("room")||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,64);          // a shared conversation to join
+    if(out.room && localStorage.getItem("simple")===null) put("simple","1");           // a phone that never chose a view gets the simple one
     out.l=ok(h.get("l"),LANGS)?h.get("l"):"";                                          // the language of whoever opens the link
     out.n=(h.get("n")||"").replace(/\s+/g," ").trim().slice(0,30);                     // and their name, if known
     if(location.hash) history.replaceState(null,"",location.pathname+location.search);
@@ -361,24 +363,24 @@ let fs=parseFloat(get("fs","1"))||1;                                            
 /* Shared conversations: this phone's own language decides the words on the page. German and Hindi are
    written out; the Assamese texts are a DRAFT for the family to correct. English is the fallback. */
 const UI={
-  English:{join_title:"Join the conversation",name_label:"Your name",name_ph:"Name",lang_label:"I speak",join:"Join",joining:"Joining…",back:"Back",
+  English:{join_title:"Join the conversation",name_label:"Your name",name_ph:"Name (optional)",lang_label:"I speak",join:"Join",joining:"Joining…",back:"Back",
     idle:"Tap the microphone and speak",listening:"Listening…",thinking:"Translating…",speaking:"Speaking…",hint:"Type, or tap the microphone and speak",
-    people:"People",leave:"Leave",end:"End for everyone",invite_more:"Invite more people",me:"me",
+    people:"People",leave:"Leave",end:"End for everyone",invite_more:"Invite more people",me:"me",untranslated:"Not translated for you",
     joined:"{n} joined",left:"{n} left",ended:"The conversation has ended.",full:"This conversation is full.",
     gone:"This link has expired or the conversation has ended.",notsure:"Not sure — showing the meaning in English",notsent:"Could not send. Please try again.",offline:"No connection. Trying again…"},
-  German:{join_title:"Dem Gespräch beitreten",name_label:"Name",name_ph:"Name",lang_label:"Ich spreche",join:"Beitreten",joining:"Trete bei…",back:"Zurück",
+  German:{join_title:"Dem Gespräch beitreten",name_label:"Name",name_ph:"Name (optional)",lang_label:"Ich spreche",join:"Beitreten",joining:"Trete bei…",back:"Zurück",
     idle:"Mikrofon antippen und sprechen",listening:"Ich höre zu…",thinking:"Übersetze…",speaking:"Spricht…",hint:"Tippen oder Mikrofon antippen und sprechen",
-    people:"Personen",leave:"Verlassen",end:"Für alle beenden",invite_more:"Weitere Personen einladen",me:"ich",
+    people:"Personen",leave:"Verlassen",end:"Für alle beenden",invite_more:"Weitere Personen einladen",me:"ich",untranslated:"Für Sie nicht übersetzt",
     joined:"{n} ist beigetreten",left:"{n} hat das Gespräch verlassen",ended:"Das Gespräch wurde beendet.",full:"Dieses Gespräch ist voll.",
     gone:"Dieser Link ist abgelaufen oder das Gespräch wurde beendet.",notsure:"Nicht sicher – Bedeutung auf Englisch",notsent:"Senden fehlgeschlagen. Bitte noch einmal versuchen.",offline:"Keine Verbindung. Neuer Versuch…"},
-  Hindi:{join_title:"बातचीत में शामिल हों",name_label:"आपका नाम",name_ph:"नाम",lang_label:"मेरी भाषा",join:"शामिल हों",joining:"शामिल हो रहे हैं…",back:"वापस",
+  Hindi:{join_title:"बातचीत में शामिल हों",name_label:"आपका नाम",name_ph:"नाम (वैकल्पिक)",lang_label:"मेरी भाषा",join:"शामिल हों",joining:"शामिल हो रहे हैं…",back:"वापस",
     idle:"माइक्रोफ़ोन दबाएँ और बोलें",listening:"सुन रहे हैं…",thinking:"अनुवाद हो रहा है…",speaking:"बोल रहे हैं…",hint:"लिखें, या माइक्रोफ़ोन दबाकर बोलें",
-    people:"लोग",leave:"छोड़ें",end:"सबके लिए समाप्त करें",invite_more:"और लोगों को बुलाएँ",me:"मैं",
+    people:"लोग",leave:"छोड़ें",end:"सबके लिए समाप्त करें",invite_more:"और लोगों को बुलाएँ",me:"मैं",untranslated:"आपके लिए अनुवाद नहीं हुआ",
     joined:"{n} शामिल हुए",left:"{n} ने छोड़ा",ended:"बातचीत समाप्त हो गई।",full:"यह बातचीत भरी हुई है।",
     gone:"यह लिंक समाप्त हो गया है या बातचीत खत्म हो चुकी है।",notsure:"पक्का नहीं — अंग्रेज़ी में मतलब दिखा रहे हैं",notsent:"भेज नहीं सके। कृपया फिर कोशिश करें।",offline:"कनेक्शन नहीं है। फिर कोशिश कर रहे हैं…"},
-  Assamese:{join_title:"কথোপকথনত যোগ দিয়ক",name_label:"আপোনাৰ নাম",name_ph:"নাম",lang_label:"মোৰ ভাষা",join:"যোগ দিয়ক",joining:"যোগ দিয়া হৈছে…",back:"উভতি যাওক",
+  Assamese:{join_title:"কথোপকথনত যোগ দিয়ক",name_label:"আপোনাৰ নাম",name_ph:"নাম (ঐচ্ছিক)",lang_label:"মোৰ ভাষা",join:"যোগ দিয়ক",joining:"যোগ দিয়া হৈছে…",back:"উভতি যাওক",
     idle:"মাইক টিপি কওক",listening:"শুনি আছোঁ…",thinking:"অনুবাদ কৰি আছোঁ…",speaking:"কৈ আছোঁ…",hint:"লিখক, বা মাইক টিপি কওক",
-    people:"মানুহ",leave:"ওলাই যাওক",end:"সকলোৰে বাবে শেষ কৰক",invite_more:"আৰু মানুহক মাতক",me:"মই",
+    people:"মানুহ",leave:"ওলাই যাওক",end:"সকলোৰে বাবে শেষ কৰক",invite_more:"আৰু মানুহক মাতক",me:"মই",untranslated:"আপোনাৰ বাবে অনুবাদ কৰা হোৱা নাই",
     joined:"{n} যোগ দিলে",left:"{n} ওলাই গ'ল",ended:"কথোপকথন শেষ হ'ল।",full:"এই কথোপকথন পূৰ্ণ হৈ গৈছে।",
     gone:"এই লিংকৰ সময় শেষ হৈছে বা কথোপকথন শেষ হৈছে।",notsure:"নিশ্চিত নহয় — ইংৰাজীত অৰ্থ দেখুৱাইছোঁ",notsent:"পঠাব পৰা নগ'ল। আকৌ চেষ্টা কৰক।",offline:"সংযোগ নাই। আকৌ চেষ্টা কৰি আছোঁ…"}
 };
@@ -691,14 +693,14 @@ $("#jgo").onclick=async()=>{
   const {r,d}=await api("POST","/api/rooms/"+joinReq.id+"/join",{name,lang:joinSel,tone:toneEl.value});
   if(!r.ok){ $("#jmsg").textContent=r.status===409?tt("full"):(r.status===404||r.status===410?tt("gone"):(d.detail||tt("offline"))); btn.disabled=false; return; }
   put("myname",name); joinsheet.hidden=true;
-  enterRoom({id:joinReq.id,pid:d.pid,since:d.since,lang:joinSel,name:name||"Guest",creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+  enterRoom({id:joinReq.id,pid:d.pid,since:d.since,lang:joinSel,name:d.name||name||"Guest",creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
 };
 $("#jcancel").onclick=()=>{ joinsheet.hidden=true; pendingJoin=null; };
 async function resumeSaved(){
   const s=savedRoom(); if(!s||!s.id||!s.pid) return;
   const {r,d}=await api("POST","/api/rooms/"+s.id+"/join",{name:s.name,lang:s.lang,tone:toneEl.value,pid:s.pid});
   if(!r.ok){ if(r.status===404||r.status===410||r.status===409){ clearRoom(); joinUi=s.lang||"English"; say(tt("gone")); } return; }
-  enterRoom({id:s.id,pid:d.pid,since:Math.max(s.since||0,d.since),lang:s.lang,name:s.name,creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+  enterRoom({id:s.id,pid:d.pid,since:Math.max(s.since||0,d.since),lang:s.lang,name:d.name||s.name,creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
 }
 
 // ---- starting ----
@@ -714,7 +716,7 @@ $("#stgo").onclick=async()=>{
   const {r,d}=await api("POST","/api/rooms",{name,lang,tone:toneEl.value,max_size:parseInt($("#stsize").value,10)});
   if(!r.ok){ $("#stmsg").textContent=d.detail||"Could not start. Please try again."; $("#stgo").disabled=false; return; }
   put("myname",name); startsheet.hidden=true;
-  enterRoom({id:d.room,pid:d.pid,since:d.since,lang,name:name||"Guest",creator:true,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+  enterRoom({id:d.room,pid:d.pid,since:d.since,lang,name:d.name||name||"Guest",creator:true,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
   openRoomSheet();                                          // straight to the share screen
 };
 $("#stcancel").onclick=()=>{ startsheet.hidden=true; };
@@ -811,6 +813,7 @@ function renderRoomEvent(ev){
     w.onclick=()=>openFix(ui,{frm:ev.from_lang,to:roomLang,tone:"auto",text:ev.original,wrong:shown,form:roomLang==="Assamese"?(script?"Assamese script":"Latin letters"):""});
     ui.row.append(w);
   }
+  if(ev.untranslated){ const w=document.createElement("div"); w.className="warn"; w.textContent=tt("untranslated"); ui.m.append(w); return; }
   if(!ev.ok){ const w=document.createElement("div"); w.className="warn"; w.textContent=tt("notsure"); ui.m.append(w); return; }
   if(autoPlay()){ const go_=()=>speak(say,voiceFor,p,ui.x,true); if(rec) deferredSpeech.push(go_); else go_(); }
 }
