@@ -73,7 +73,7 @@ body.simple .orig{font-size:.8em}
 body.simple .tr{font-size:1.7em;line-height:1.25}
 body.simple .meta, body.simple .wrongbtn{display:none}
 body.simple .play{min-width:60px;height:60px;font-size:1.5em}
-body.simple #inp, body.simple #go, body.simple .cfg{display:none}
+body.simple .cfg{display:none}
 body.simple #status{font-size:.85em}
 body.simple #state{display:block;text-align:center;font-weight:700;font-size:1.15em;padding:12px;border-radius:14px;margin-bottom:10px;background:var(--card);border:1px solid var(--line);color:var(--mute)}
 body.simple #state.listening{background:#b91c1c;border-color:#b91c1c;color:#fff}
@@ -84,6 +84,14 @@ body.simple .mic{min-height:20vh;font-size:1.25em;border-radius:22px;line-height
 body.simple #mica{border:4px solid var(--a)}
 body.simple #micb{border:4px solid var(--b)}
 body.simple .mic.on{border-color:#b91c1c}
+/* the typing box sits above the big buttons; the banner only shows while something is happening */
+body.simple footer{display:flex;flex-wrap:wrap;align-items:stretch;gap:10px}
+body.simple #status{order:0;flex:1 1 100%;margin-bottom:0}
+body.simple #state{order:1;flex:1 1 100%;margin-bottom:0}
+body.simple #state.idle{display:none}
+body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
+body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
+body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 #sheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
 #sheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px}
@@ -404,7 +412,8 @@ async function send(via){
     else if(autoPlay()) spoke=speak(say,voiceFor,p,ui.x);   // true only if the phone really started to speak
   }catch(e){ ui.m.classList.add("err"); ui.t.textContent="Could not translate. Please try again."; ui.x.textContent=String(e.message||e); }
   if(!spoke) setState("idle");
-  go.disabled=false; log.scrollTop=log.scrollHeight; inp.focus();
+  go.disabled=false; log.scrollTop=log.scrollHeight;
+  if(!via) inp.focus();      // after something typed; after speaking, do not pop the keyboard up
 }
 go.onclick=()=>send();
 inp.addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); send(); } });
@@ -412,17 +421,19 @@ $("#reset").onclick=async()=>{
   if(!confirm("Start a new conversation?")) return;
   try{await fetch("/api/reset",{method:"POST",headers:authHeaders()});}catch(e){}
   if(canSpeak) speechSynthesis.cancel();
-  log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:"New conversation. "+emptyText()}));
+  log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:(simple?"New conversation.":"New conversation. "+emptyText())}));
 };
 
 /* ---- menu and mode switching ---- */
 const sheet=$("#sheet");
-const emptyText=()=>simple?"Tap your language's button, then speak.":"Type what was said in either language. It translates into the other one.";
+const emptyText=()=>simple?"":"Type what was said in either language. It translates into the other one.";   // the simple view's hint lives in the text box
 function applyMode(){
   document.body.classList.toggle("simple",simple);
   document.body.style.setProperty("--fs",String(fs));
   refreshMics();
   const e=$("#empty"); if(e) e.textContent=emptyText();
+  inp.placeholder=simple?"Type, or tap a button and speak":"Type here, or tap a microphone…";
+  go.textContent=simple?"➤":"Translate"; go.setAttribute("aria-label","Translate");
   setState("idle");
 }
 $("#more").onclick=()=>{ sheet.hidden=false; };
