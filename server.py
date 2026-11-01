@@ -2,10 +2,11 @@
 import asyncio, hmac, io, os, re, time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 import segno
 import corrections
+import rooms
 import translator
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -55,13 +56,13 @@ class Engine:
         self.s = None
         self.turns = 0
 
-    async def _call(self, a, b, text, script=False, tone="auto", latin_only=False, also_script=False):
+    async def _run(self, fn):
+        """Run fn(session) on the shared Claude session. The caller must hold self.lock."""
         if self.s is None:
             self.s = translator.Session()
             self.restarts += 1
         try:
-            r = await asyncio.wait_for(
-                asyncio.to_thread(self.s.translate_pair, a, b, text, script, tone, latin_only, also_script), TIMEOUT)
+            r = await asyncio.wait_for(asyncio.to_thread(fn, self.s), TIMEOUT)
         except Exception:
             self._kill()
             raise
@@ -69,6 +70,31 @@ class Engine:
         if self.turns >= MAX_TURNS:
             self._kill()
         return r
+
+    async def _call(self, a, b, text, script=False, tone="auto", latin_only=False, also_script=False):
+        return await self._run(lambda s: s.translate_pair(a, b, text, script, tone, latin_only, also_script))
+
+    async def room_translate(self, src, targets, text, tone):
+        """One room message into every target language at once. Returns (translations, assamese_script, ok)."""
+        async with self.lock:
+            for strict in (False, True):    # the second pass only runs if Latin Assamese came back with stray non-Latin characters
+                if len(targets) == 1:
+                    tgt = targets[0]
+                    res = await self._run(lambda s: s.translate_to(src, tgt, text, tone, also_script=True, latin_only=strict))
+                    ok, n = res["ok"], res["n"]
+                    tr = {tgt: res["t"]} if ok else {"English": res["t"]}     # not sure: the English meaning
+                else:
+                    res = await self._run(lambda s: s.translate_multi(src, targets, text, tone, latin_only=strict))
+                    tr, ok, n = res["tr"], res["ok"], res["n"]
+                    if ok and any(not tr.get(t) for t in targets):
+                        ok = False                                             # the model skipped a language
+                if not ok or not tr.get("Assamese") or not NON_ASCII.search(tr["Assamese"]):
+                    break
+            if ok and tr.get("Assamese") and NON_ASCII.search(tr["Assamese"]):
+                ok = False
+            if not (ok and isinstance(n, str) and SCRIPT_CHARS.search(n) and len(n) <= 1200):
+                n = None
+            return tr, n, ok
 
     async def translate(self, a, b, text, script=False, tone="auto", latin_only=False, also_script=False):
         async with self.lock:
@@ -93,12 +119,19 @@ engine = Engine()
 @asynccontextmanager
 async def lifespan(app):
     asyncio.create_task(engine.warm())
+    sweeper = asyncio.create_task(rooms.sweep_forever())
     yield
+    sweeper.cancel()
     engine._kill()
 
 
 # No auto-generated API docs: the app is reachable from the internet, so don't describe it to strangers.
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+@app.exception_handler(rooms.RoomError)
+async def room_error(_request, e):
+    return JSONResponse({"detail": e.detail}, status_code=e.status)
 
 
 class Req(BaseModel):
@@ -187,6 +220,132 @@ async def api_delete_correction(cid: str):
     if not corrections.remove(cid):
         raise HTTPException(404, "no such correction")
     await engine.reset()
+    return {"ok": True}
+
+
+class RoomNew(BaseModel):
+    name: str = ""
+    lang: str
+    tone: str = "formal"
+    max_size: int = rooms.DEFAULT_SIZE
+
+
+class RoomJoin(BaseModel):
+    name: str = ""
+    lang: str
+    tone: str = "formal"
+    pid: str = ""           # set when coming back after a reload
+
+
+class RoomMsg(BaseModel):
+    pid: str
+    text: str
+
+
+class RoomWho(BaseModel):
+    pid: str
+
+
+class RoomProfile(BaseModel):
+    pid: str
+    lang: str = ""
+    tone: str = ""
+    name: str = ""
+
+
+class RoomSize(BaseModel):
+    pid: str
+    max_size: int
+
+
+@app.post("/api/rooms", dependencies=[Depends(require_auth)])
+async def room_new(r: RoomNew):
+    """Start a shared conversation; the creator is its first member."""
+    room = rooms.create(r.max_size)
+    try:
+        p = await room.join(r.name, r.lang, r.tone)
+    except Exception:
+        rooms.ROOMS.pop(room.id, None)
+        raise
+    return {"room": room.id, "pid": p.pid, "since": p.joined_event, "ceiling": rooms.ROOM_CEILING, **room.summary()}
+
+
+@app.get("/api/rooms/{rid}", dependencies=[Depends(require_auth)])
+async def room_info(rid: str):
+    room = rooms.get(rid)
+    return {"ceiling": rooms.ROOM_CEILING, "full": len(room.active()) >= room.max_size, **room.summary()}
+
+
+@app.post("/api/rooms/{rid}/join", dependencies=[Depends(require_auth)])
+async def room_join(rid: str, r: RoomJoin):
+    room = rooms.get(rid)
+    p = await room.join(r.name, r.lang, r.tone, r.pid)
+    return {"pid": p.pid, "since": p.joined_event, "creator": p.pid == room.creator, "ceiling": rooms.ROOM_CEILING,
+            **room.summary()}
+
+
+@app.get("/api/rooms/{rid}/events", dependencies=[Depends(require_auth)])
+async def room_events(rid: str, pid: str = "", since: int = 0, wait: float = 20.0):
+    return await rooms.get(rid).poll(pid, since, wait)
+
+
+@app.post("/api/rooms/{rid}/messages", dependencies=[Depends(require_auth)])
+async def room_send(rid: str, m: RoomMsg):
+    room = rooms.get(rid)
+    p = room.person(m.pid)
+    text = re.sub(r"\s+", " ", m.text).strip()
+    room.check_send(p, text)
+    targets = room.languages_for(p)             # every other language someone present needs
+    t0 = time.time()
+    tr, n, ok = {}, None, True
+    if targets:
+        room.pending += 1
+        try:
+            tr, n, ok = await engine.room_translate(p.lang, targets, text, p.tone)
+        except Exception as e:
+            raise HTTPException(503, f"translator failed ({type(e).__name__}); try again")
+        finally:
+            room.pending -= 1
+    ev = await room.post(p, text, tr, n, ok)
+    return {"id": ev["id"], "ok": ok, "ms": int((time.time() - t0) * 1000), "languages": targets}
+
+
+@app.post("/api/rooms/{rid}/profile", dependencies=[Depends(require_auth)])
+async def room_profile(rid: str, r: RoomProfile):
+    room = rooms.get(rid)
+    p = room.person(r.pid)
+    if r.lang:
+        if r.lang not in rooms.LANGS:
+            raise HTTPException(400, "unknown language")
+        p.lang = r.lang
+    if r.tone:
+        if r.tone not in rooms.TONES:
+            raise HTTPException(400, "unknown tone")
+        p.tone = r.tone
+    if r.name:
+        p.name = rooms.clean_name(r.name)
+    p.last_seen = time.time()
+    return room.summary()
+
+
+@app.post("/api/rooms/{rid}/size", dependencies=[Depends(require_auth)])
+async def room_size(rid: str, r: RoomSize):
+    room = rooms.get(rid)
+    room.resize(room.person(r.pid), r.max_size)
+    return room.summary()
+
+
+@app.post("/api/rooms/{rid}/leave", dependencies=[Depends(require_auth)])
+async def room_leave(rid: str, r: RoomWho):
+    room = rooms.get(rid)
+    await room.leave(room.person(r.pid))
+    return {"ok": True}
+
+
+@app.post("/api/rooms/{rid}/end", dependencies=[Depends(require_auth)])
+async def room_end(rid: str, r: RoomWho):
+    room = rooms.get(rid)
+    await room.end(room.person(r.pid))
     return {"ok": True}
 
 

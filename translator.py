@@ -40,6 +40,31 @@ def parse(raw):
     return {"t": raw.strip(), "ok": False, "from": None, "n": None}
 
 
+def _json_objects(raw):
+    """Every JSON object in the text, including nested ones, in order."""
+    dec, i, out = json.JSONDecoder(), 0, []
+    while True:
+        i = raw.find("{", i)
+        if i < 0:
+            return out
+        try:
+            obj, end = dec.raw_decode(raw, i)
+            out.append(obj)
+            i = end
+        except json.JSONDecodeError:
+            i += 1
+
+
+def parse_multi(raw):
+    """For the '=>' form: {"tr": {language: text, ...}, "ok", "from", "n"}. The last valid object wins."""
+    for d in reversed(_json_objects(raw)):
+        if isinstance(d, dict) and isinstance(d.get("tr"), dict):
+            tr = {str(k): v.strip() for k, v in d["tr"].items() if isinstance(v, str) and v.strip()}
+            return {"tr": tr, "ok": bool(d.get("ok", False)), "from": d.get("from"),
+                    "n": d.get("n") if isinstance(d.get("n"), str) else None}
+    return {"tr": {}, "ok": False, "from": None, "n": None}
+
+
 class Session:
     """One long-running claude process; each translation is a new turn."""
     def __init__(self):
@@ -47,17 +72,39 @@ class Session:
             [CLAUDE, "-p", *_flags(), "--input-format", "stream-json",
              "--output-format", "stream-json", "--verbose"],
             cwd=HERE, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL, text=True, bufsize=1)
+            stderr=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", bufsize=1)   # utf-8 always: Assamese, Hindi, German
 
-    def ask(self, content):
+    def ask(self, content, multi=False):
         msg = {"type": "user", "message": {"role": "user", "content": content}}
         self.p.stdin.write(json.dumps(msg, ensure_ascii=False) + "\n")
         self.p.stdin.flush()
         for line in self.p.stdout:
             ev = json.loads(line)
             if ev.get("type") == "result":
-                return parse(ev.get("result") or "")
+                raw = ev.get("result") or ""
+                return parse_multi(raw) if multi else parse(raw)
         raise RuntimeError("claude process ended")
+
+    @staticmethod
+    def _tags(tone, latin_only, also_script):
+        tags = ""
+        if also_script:
+            tags += "[also-script] "
+        if tone in ("formal", "informal"):
+            tags += f"[tone={tone}] "
+        if latin_only:
+            tags += "[latin-only] "
+        return tags
+
+    def translate_to(self, src, tgt, text, tone="auto", also_script=False, latin_only=False):
+        """One known direction, e.g. for a room: the speaker's language is known, no guessing."""
+        tags = self._tags(tone, latin_only, also_script and tgt == "Assamese")
+        return self.ask(f"[{src} -> {tgt}] {tags}{text}")
+
+    def translate_multi(self, src, targets, text, tone="auto", latin_only=False):
+        """One known source language, several target languages in a single call."""
+        tags = self._tags(tone, latin_only, "Assamese" in targets)
+        return self.ask(f"[{src} => {', '.join(targets)}] {tags}{text}", multi=True)
 
     def translate(self, src, tgt, text):
         return self.ask(f"[{src} -> {tgt}] {text}")
