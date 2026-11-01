@@ -92,8 +92,8 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet,#invsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden],#invsheet[hidden]{display:none}
+#sheet,#invsheet,#joinsheet,#startsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#invsheet[hidden],#joinsheet[hidden],#startsheet[hidden],#roomsheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
@@ -104,6 +104,24 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 .sheetcard>*{flex-shrink:0}
 #invqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
 .sheetcard .note{font-size:.7em;color:var(--mute);margin:0}
+/* ---- shared conversations (rooms) ---- */
+#roomlang,#roombtn,#roomstart{display:none}
+body.room #roomlang,body.room #roombtn{display:inline-block}
+body:not(.room):not(.simple) #roomstart{display:inline-block}
+body.room header .pair,body.room #reset,body.room #tosimple,body.room #roomstart,body.room #micb,body.room #more{display:none!important}
+body.room.simple header .auto,body.room.simple #scr{display:none}
+#roomlang{font-size:1em;max-width:9em}
+#roombtn{font-size:1.05em;padding:8px 12px}
+.who{font-size:.8em;font-weight:700;color:var(--mute);margin-bottom:2px}
+.sys{align-self:center;color:var(--mute);font-size:.85em;text-align:center;padding:2px 8px}
+.langgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.langgrid button{padding:18px 8px;font-size:1.1em;font-weight:700}
+.langgrid button.on{border:3px solid var(--btn)}
+.sheetcard .primary{background:var(--btn);color:#fff;border:0;font-weight:700}
+.sheetcard .primary:disabled{opacity:.5}
+.sheetcard input[type=text]{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.05em;width:100%}
+.rp{padding:6px 0;border-bottom:1px solid var(--line);font-size:.9em}
+#rqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(60vw,220px);height:auto;aspect-ratio:1/1;flex:none}
 </style>
 </head>
 <body>
@@ -120,6 +138,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
   <div class="sheetcard">
     <h2>PolyGo</h2>
     <button id="sinvite" type="button">Invite someone (QR)</button>
+    <button id="sroom" type="button">Start a shared conversation</button>
     <div class="sheetrow"><button id="fsm" type="button" aria-label="Smaller text">A−</button><button id="fsp" type="button" aria-label="Larger text">A+</button></div>
     <button id="snew" type="button">New conversation</button>
     <button id="sfull" type="button">All settings (full view)</button>
@@ -151,8 +170,54 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
     <button id="invclose" type="button">Close</button>
   </div>
 </div>
+<div id="joinsheet" hidden>
+  <div class="sheetcard">
+    <h2 id="jtitle"></h2>
+    <label class="invf"><span id="jnamel"></span><input id="jname" type="text" maxlength="30" autocomplete="off"></label>
+    <div class="invf"><span id="jlangl"></span></div>
+    <div class="langgrid" id="jlangs"></div>
+    <div id="jmsg" class="meta"></div>
+    <button id="jgo" type="button" class="primary"></button>
+    <button id="jcancel" type="button"></button>
+  </div>
+</div>
+<div id="startsheet" hidden>
+  <div class="sheetcard">
+    <h2>Start a shared conversation</h2>
+    <label class="invf">Your name<input id="stname" type="text" maxlength="30" autocomplete="off"></label>
+    <label class="invf">Your language<select id="stlang"></select></label>
+    <label class="invf">Most phones in it<select id="stsize"></select></label>
+    <p class="note">The link works for 24 hours, and everyone who opens it needs the family passcode. Nothing is saved: messages exist only while the conversation is open.</p>
+    <div id="stmsg" class="meta"></div>
+    <button id="stgo" type="button" class="primary">Start</button>
+    <button id="stcancel" type="button">Cancel</button>
+  </div>
+</div>
+<div id="roomsheet" hidden>
+  <div class="sheetcard">
+    <h2 id="rtitle"></h2>
+    <div id="rpeople"></div>
+    <label class="invf" id="rsizebox" hidden>Most phones in it<select id="rsize"></select></label>
+    <label class="invf">Link for<select id="rwho">
+      <option value="any">Anyone (they choose their language)</option>
+      <option value="Assamese">An Assamese speaker, big buttons</option>
+      <option value="German">A German speaker, big buttons</option>
+      <option value="English">An English speaker, big buttons</option>
+      <option value="Hindi">A Hindi speaker, big buttons</option></select></label>
+    <img id="rqr" alt="QR code of the conversation link" width="220" height="220">
+    <div class="sheetrow"><button id="rcopy" type="button">Copy link</button><button id="rshare" type="button">Share…</button></div>
+    <button id="rinvite" type="button"></button>
+    <div id="rmsg" class="meta"></div>
+    <div class="sheetrow"><button id="rfsm" type="button" aria-label="Smaller text">A−</button><button id="rfsp" type="button" aria-label="Larger text">A+</button></div>
+    <button id="rleave" type="button"></button>
+    <button id="rend" type="button" hidden></button>
+    <button id="rclose" type="button">Close</button>
+  </div>
+</div>
 <header>
   <h1>PolyGo</h1>
+  <select id="roomlang" aria-label="My language"></select>
+  <button class="ghost" id="roombtn" aria-label="People">👥 <span id="roomcount"></span></button>
   <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
   <button class="ghost" id="scr"></button>
   <label class="auto">Tone <select id="tone" aria-label="Tone of address">
@@ -162,6 +227,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
   </select></label>
   <label class="auto"><input type="checkbox" id="auto"> Auto-play</label>
   <button class="ghost" id="reset" title="Start a fresh conversation">New</button>
+  <button class="ghost" id="roomstart" title="Start a shared conversation">Shared chat</button>
   <button class="ghost" id="tosimple" title="Big buttons, nothing else">Simple view</button>
   <button class="ghost" id="more" aria-label="Menu">⋯</button>
 </header>
@@ -205,6 +271,9 @@ const invite=(()=>{
     if(h.get("v")==="full"||h.has("full")) put("simple","0");
     const z=parseFloat(h.get("z")); if(z>=0.8&&z<=1.9) put("fs",String(z));
     out.k=(h.get("k")||"").trim();
+    out.room=(h.get("room")||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,64);          // a shared conversation to join
+    out.l=ok(h.get("l"),LANGS)?h.get("l"):"";                                          // the language of whoever opens the link
+    out.n=(h.get("n")||"").replace(/\s+/g," ").trim().slice(0,30);                     // and their name, if known
     if(location.hash) history.replaceState(null,"",location.pathname+location.search);
   }catch(e){}
   return out;
@@ -237,12 +306,12 @@ function pickVoice(lang){
 }
 // A voice that can read Assamese script: Assamese first, then Bengali (same alphabet).
 function scriptVoice(){ return pickVoice("AssameseScript"); }
-function speak(text,lang,btn,meta){
+function speak(text,lang,btn,meta,queue){
   const note=d=>{ btn.title=d; if(meta) meta.textContent=(meta.dataset.base||"")+" · 🔊 "+d; };
   if(!canSpeak){ note("this browser cannot speak"); return false; }
   const v=pickVoice(lang);
   if(lang==="AssameseScript" && !v){ note("no Assamese or Bengali voice on this phone"); return false; }
-  speechSynthesis.cancel();
+  if(!queue) speechSynthesis.cancel();      // a conversation queues messages instead of cutting the last one off
   const u=new SpeechSynthesisUtterance(text);
   if(v){ u.voice=v; u.lang=v.lang; } else { u.lang=(VOICE_TAGS[lang]||["en-US"])[0]; }
   u.rate=parseFloat(rate.value)||0.75;
@@ -280,7 +349,7 @@ scrBtn.onclick=()=>{ script=!script; put("script",script?"1":"0"); showScr(); };
 // How people are addressed in the translation: formal (default), informal, or match the speaker.
 const toneEl=$("#tone");
 toneEl.value=["formal","informal","auto"].includes(get("tone","formal"))?get("tone","formal"):"formal";
-toneEl.onchange=()=>put("tone",toneEl.value);
+toneEl.onchange=()=>{ put("tone",toneEl.value); if(roomMode&&room) api("POST","/api/rooms/"+room.id+"/profile",{pid:room.pid,tone:toneEl.value}); };
 const auto=$("#auto");
 auto.checked=get("auto","1")==="1";
 auto.onchange=()=>put("auto",auto.checked?"1":"0");
@@ -289,9 +358,44 @@ auto.onchange=()=>put("auto",auto.checked?"1":"0");
 const NATIVE={Assamese:"অসমীয়া",German:"Deutsch",English:"English",Hindi:"हिन्दी"};   // language names as people write them
 let simple=get("simple","0")==="1";                                               // an invite link or #simple can switch this on
 let fs=parseFloat(get("fs","1"))||1;                                              // text size in the simple view
+/* Shared conversations: this phone's own language decides the words on the page. German and Hindi are
+   written out; the Assamese texts are a DRAFT for the family to correct. English is the fallback. */
+const UI={
+  English:{join_title:"Join the conversation",name_label:"Your name",name_ph:"Name",lang_label:"I speak",join:"Join",joining:"Joining…",back:"Back",
+    idle:"Tap the microphone and speak",listening:"Listening…",thinking:"Translating…",speaking:"Speaking…",hint:"Type, or tap the microphone and speak",
+    people:"People",leave:"Leave",end:"End for everyone",invite_more:"Invite more people",me:"me",
+    joined:"{n} joined",left:"{n} left",ended:"The conversation has ended.",full:"This conversation is full.",
+    gone:"This link has expired or the conversation has ended.",notsure:"Not sure — showing the meaning in English",notsent:"Could not send. Please try again.",offline:"No connection. Trying again…"},
+  German:{join_title:"Dem Gespräch beitreten",name_label:"Name",name_ph:"Name",lang_label:"Ich spreche",join:"Beitreten",joining:"Trete bei…",back:"Zurück",
+    idle:"Mikrofon antippen und sprechen",listening:"Ich höre zu…",thinking:"Übersetze…",speaking:"Spricht…",hint:"Tippen oder Mikrofon antippen und sprechen",
+    people:"Personen",leave:"Verlassen",end:"Für alle beenden",invite_more:"Weitere Personen einladen",me:"ich",
+    joined:"{n} ist beigetreten",left:"{n} hat das Gespräch verlassen",ended:"Das Gespräch wurde beendet.",full:"Dieses Gespräch ist voll.",
+    gone:"Dieser Link ist abgelaufen oder das Gespräch wurde beendet.",notsure:"Nicht sicher – Bedeutung auf Englisch",notsent:"Senden fehlgeschlagen. Bitte noch einmal versuchen.",offline:"Keine Verbindung. Neuer Versuch…"},
+  Hindi:{join_title:"बातचीत में शामिल हों",name_label:"आपका नाम",name_ph:"नाम",lang_label:"मेरी भाषा",join:"शामिल हों",joining:"शामिल हो रहे हैं…",back:"वापस",
+    idle:"माइक्रोफ़ोन दबाएँ और बोलें",listening:"सुन रहे हैं…",thinking:"अनुवाद हो रहा है…",speaking:"बोल रहे हैं…",hint:"लिखें, या माइक्रोफ़ोन दबाकर बोलें",
+    people:"लोग",leave:"छोड़ें",end:"सबके लिए समाप्त करें",invite_more:"और लोगों को बुलाएँ",me:"मैं",
+    joined:"{n} शामिल हुए",left:"{n} ने छोड़ा",ended:"बातचीत समाप्त हो गई।",full:"यह बातचीत भरी हुई है।",
+    gone:"यह लिंक समाप्त हो गया है या बातचीत खत्म हो चुकी है।",notsure:"पक्का नहीं — अंग्रेज़ी में मतलब दिखा रहे हैं",notsent:"भेज नहीं सके। कृपया फिर कोशिश करें।",offline:"कनेक्शन नहीं है। फिर कोशिश कर रहे हैं…"},
+  Assamese:{join_title:"কথোপকথনত যোগ দিয়ক",name_label:"আপোনাৰ নাম",name_ph:"নাম",lang_label:"মোৰ ভাষা",join:"যোগ দিয়ক",joining:"যোগ দিয়া হৈছে…",back:"উভতি যাওক",
+    idle:"মাইক টিপি কওক",listening:"শুনি আছোঁ…",thinking:"অনুবাদ কৰি আছোঁ…",speaking:"কৈ আছোঁ…",hint:"লিখক, বা মাইক টিপি কওক",
+    people:"মানুহ",leave:"ওলাই যাওক",end:"সকলোৰে বাবে শেষ কৰক",invite_more:"আৰু মানুহক মাতক",me:"মই",
+    joined:"{n} যোগ দিলে",left:"{n} ওলাই গ'ল",ended:"কথোপকথন শেষ হ'ল।",full:"এই কথোপকথন পূৰ্ণ হৈ গৈছে।",
+    gone:"এই লিংকৰ সময় শেষ হৈছে বা কথোপকথন শেষ হৈছে।",notsure:"নিশ্চিত নহয় — ইংৰাজীত অৰ্থ দেখুৱাইছোঁ",notsent:"পঠাব পৰা নগ'ল। আকৌ চেষ্টা কৰক।",offline:"সংযোগ নাই। আকৌ চেষ্টা কৰি আছোঁ…"}
+};
+// Which language does this phone suggest? Only the FIRST language setting counts, and English is too ambiguous to trust.
+function deviceLang(){
+  const first=((navigator.languages&&navigator.languages[0])||navigator.language||"").slice(0,2).toLowerCase();
+  return {de:"German",hi:"Hindi",as:"Assamese"}[first]||"";
+}
+let room=null, roomMode=false, roomLang="", joinUi="English";   // the shared conversation this phone is in, if any
+const tt=(k,v)=>{
+  let s=(UI[(roomMode&&roomLang)||joinUi]||UI.English)[k]||UI.English[k]||k;
+  if(v) for(const [a,b] of Object.entries(v)) s=s.replace("{"+a+"}",b);
+  return s;
+};
 const stateEl=$("#state");
 const STATES={idle:"Tap a button and speak",listening:"Listening…",thinking:"Translating…",speaking:"Speaking…"};
-function setState(k){ stateEl.className=k; stateEl.textContent=STATES[k]||""; }
+function setState(k){ stateEl.className=k; stateEl.textContent=roomMode?tt(k):(STATES[k]||""); }
 const autoPlay=()=>simple||auto.checked;                                         // the simple view always speaks the answer
 
 /* ---- speech input (the phone's own recognizer; needs https) ---- */
@@ -306,10 +410,10 @@ const say=m=>{ statusEl.textContent=m||""; };
 let rec=null, micErr=false, conf=0;
 
 function refreshMics(){
-  const nm=l=>simple?(NATIVE[l]||l):l;       // the simple view shows each language as its speakers write it
-  $("#mica").textContent="🎤 "+nm(la.value); $("#micb").textContent="🎤 "+nm(lb.value);
+  const nm=l=>(simple||roomMode)?(NATIVE[l]||l):l;       // the simple view and conversations show each language as its speakers write it
+  $("#mica").textContent="🎤 "+nm(roomMode?roomLang:la.value); $("#micb").textContent="🎤 "+nm(lb.value);
   const cfg=$("#cfg"); cfg.replaceChildren();
-  for(const l of [la.value,lb.value]){
+  for(const l of (roomMode?[roomLang]:[la.value,lb.value])){
     const lab=document.createElement("label"), sel=document.createElement("select");
     for(const c of MIC_OPTS[l]) sel.add(new Option(c,c));
     sel.value=micLang(l); sel.onchange=()=>put("mic_"+l,sel.value);
@@ -331,18 +435,20 @@ function toggleMic(side){
   if(rec){ try{rec.stop()}catch(e){} return; }
   if(!SR){ say("This browser cannot do speech recognition. Use Chrome on Android or on a computer."); return; }
   if(!window.isSecureContext){ say("The microphone only works on an https page. On Android/Windows Chrome you can allow this address in chrome://flags/#unsafely-treat-insecure-origin-as-secure."); return; }
-  const language=side==="a"?la.value:lb.value, code=micLang(language);
+  if(roomMode&&room&&room.ended){ say(tt("ended")); return; }
+  const language=roomMode?roomLang:(side==="a"?la.value:lb.value), code=micLang(language);
   if(canSpeak) speechSynthesis.cancel();
   unlockSpeech(); say(""); micErr=false; conf=0; inp.value="";
   const r=new SR(); rec=r; r.lang=code; r.interimResults=true; r.continuous=false; r.maxAlternatives=1;
   const btn=$(side==="a"?"#mica":"#micb");
-  r.onstart=()=>{ btn.classList.add("on"); btn.textContent=simple?"■ Listening…":"■ Listening… ("+code+")"; setState("listening"); };
+  r.onstart=()=>{ btn.classList.add("on"); btn.textContent=(simple||roomMode)?"■ "+(roomMode?tt("listening"):"Listening…"):"■ Listening… ("+code+")"; setState("listening"); };
   r.onresult=e=>{ let s=""; for(const res of e.results) s+=res[0].transcript; inp.value=s.trim(); conf=e.results[0][0].confidence; };
   r.onerror=e=>{ if(e.error!=="aborted"){ micErr=true; say(micError(e.error,code)); } };
   r.onend=()=>{
     btn.classList.remove("on"); refreshMics(); rec=null;
     if(inp.value.trim() && !micErr) send("mic "+code+(conf?" "+Math.round(conf*100)+"%":""));
     else setState("idle");
+    for(const f of deferredSpeech.splice(0)) f();      // messages that arrived while this phone was listening
   };
   try{ r.start(); }catch(e){ rec=null; say("Could not start the microphone: "+e.message); }
 }
@@ -366,7 +472,7 @@ $("#lockform").onsubmit=async e=>{
   $("#lockgo").disabled=true; lockMsg.textContent="Checking…";
   const res=await tryPass(p);
   $("#lockgo").disabled=false;
-  if(res==="ok"){ passcode=p; put("pass",p); lockEl.hidden=true; inp.focus(); }
+  if(res==="ok"){ passcode=p; put("pass",p); lockEl.hidden=true; onAuthed(); }
   else lockMsg.textContent={wrong:"That passcode is not right. Please try again.",unset:"The translator has no passcode set up yet.",offline:"Cannot reach the translator. Check your connection.",error:"Something went wrong. Please try again."}[res];
 };
 $("#forget").onclick=()=>{ put("pass",""); passcode=""; showLock(""); };
@@ -375,6 +481,7 @@ $("#forget").onclick=()=>{ put("pass",""); passcode=""; showLock(""); };
   const res=await tryPass(passcode);
   if(res==="ok"){
     if(invite.k){ put("pass",passcode); say("All set. This phone is ready."); setTimeout(()=>say(""),4000); }
+    onAuthed();
     return;
   }
   if(res==="wrong") showLock(invite.k?"The code in this link is not right any more. Ask for a new link.":"The passcode has changed. Please enter the new one.");
@@ -437,6 +544,7 @@ function add(orig){
   return {m,t,x,row};
 }
 async function send(via){
+  if(roomMode) return sendRoom(via);
   const text=inp.value.trim(); if(!text) return;
   inp.value=""; go.disabled=true;
   unlockSpeech(); setState("thinking");
@@ -493,6 +601,7 @@ function presetFor(who){
 function makeInviteLink(){
   const p=presetFor($("#invwho").value);
   const q=new URLSearchParams({a:p.a,b:p.b,t:$("#invtone").value,s:$("#invscript").value,v:p.v,k:passcode});
+  if(roomMode&&room){ q.set("room",room.id); q.set("l",$("#invwho").value==="me"?roomLang:p.a); }   // inside a conversation, the invite joins it too
   return location.origin+location.pathname+"#"+q.toString();     // after the #, so no server ever receives it
 }
 async function drawInvite(){
@@ -518,6 +627,259 @@ $("#invcopy").onclick=async()=>{
 if(navigator.share) $("#invshare").onclick=()=>navigator.share({title:"PolyGo",text:"Open this link on your phone to set up PolyGo:",url:invLink}).catch(()=>{});
 else $("#invshare").hidden=true;
 
+/* ---- shared conversations (rooms): start, join, live updates ---- */
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ROOMKEY="polygo_room";
+let roomAbort=null, roomLoopOn=false, authedOnce=false, wl=null, roomLinkText="";
+let pendingJoin=invite.room?{id:invite.room,lang:invite.l,name:invite.n}:null;
+const pendingMine=[], deferredSpeech=[];
+const roomsheet=$("#roomsheet"), joinsheet=$("#joinsheet"), startsheet=$("#startsheet");
+
+async function api(method,path,body){
+  let r, d={};
+  try{ r=await fetch(path,{method,headers:authHeaders(),body:body?JSON.stringify(body):undefined}); }
+  catch(e){ return {r:{ok:false,status:0},d:{detail:"offline"}}; }
+  try{ d=await r.json(); }catch(e){}
+  if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); }
+  return {r,d};
+}
+function savedRoom(){ try{ return JSON.parse(get(ROOMKEY,"")||"null"); }catch(e){ return null; } }
+function saveRoom(){ if(room) put(ROOMKEY,JSON.stringify({id:room.id,pid:room.pid,since:room.since,lang:roomLang,name:room.name})); }
+function clearRoom(){ try{ localStorage.removeItem(ROOMKEY); }catch(e){} }
+async function keepAwake(){ try{ if("wakeLock" in navigator && !wl){ wl=await navigator.wakeLock.request("screen"); wl.addEventListener("release",()=>{ wl=null; }); } }catch(e){} }
+function releaseAwake(){ try{ if(wl) wl.release(); }catch(e){} wl=null; }
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&roomMode){ keepAwake(); try{ roomAbort&&roomAbort.abort(); }catch(e){} } });   // coming back: ask again at once
+function onAuthed(){                       // the passcode is accepted: carry on with a link or a conversation we were in
+  if(authedOnce) return; authedOnce=true;
+  if(pendingJoin){ const j=pendingJoin; pendingJoin=null; beginJoin(j); } else resumeSaved();
+}
+function updateChip(){ $("#roomcount").textContent=room?String(room.people.length):""; }
+function paintRoomLang(){
+  const sel=$("#roomlang"); if(!sel.options.length) for(const l of LANGS) sel.add(new Option(NATIVE[l],l));
+  sel.value=roomLang;
+}
+
+// ---- joining ----
+let joinSel="", joinReq=null;
+function paintJoin(){
+  $("#jtitle").textContent=tt("join_title"); $("#jnamel").textContent=tt("name_label"); $("#jlangl").textContent=tt("lang_label");
+  $("#jgo").textContent=tt("join"); $("#jcancel").textContent=tt("back"); $("#jname").placeholder=tt("name_ph");
+  for(const b of $("#jlangs").children) b.classList.toggle("on",b.dataset.lang===joinSel);
+}
+function openJoin(j,info){
+  joinReq=j; joinSel=j.lang||deviceLang(); joinUi=joinSel||"English";
+  $("#jname").value=j.name||get("myname","");
+  const grid=$("#jlangs"); grid.replaceChildren();
+  for(const l of ["English","Hindi","Assamese","German"]){
+    const b=document.createElement("button"); b.type="button"; b.dataset.lang=l; b.textContent=NATIVE[l];
+    b.onclick=()=>{ joinSel=l; joinUi=l; paintJoin(); if(!blocked) $("#jgo").disabled=false; };
+    grid.append(b);
+  }
+  const blocked=info.closed?tt("gone"):(info.full?tt("full"):"");
+  paintJoin(); $("#jmsg").textContent=blocked; $("#jgo").disabled=!!blocked||!joinSel;
+  joinsheet.hidden=false;
+}
+async function beginJoin(j){
+  const s=savedRoom(); if(s&&s.id===j.id){ resumeSaved(); return; }
+  const {r,d}=await api("GET","/api/rooms/"+j.id);
+  openJoin(j,r.ok?d:{closed:true});
+}
+$("#jgo").onclick=async()=>{
+  unlockSpeech();                                          // this tap is what lets an iPhone speak later
+  const btn=$("#jgo"); btn.disabled=true; $("#jmsg").textContent=tt("joining");
+  const name=$("#jname").value.trim();
+  const {r,d}=await api("POST","/api/rooms/"+joinReq.id+"/join",{name,lang:joinSel,tone:toneEl.value});
+  if(!r.ok){ $("#jmsg").textContent=r.status===409?tt("full"):(r.status===404||r.status===410?tt("gone"):(d.detail||tt("offline"))); btn.disabled=false; return; }
+  put("myname",name); joinsheet.hidden=true;
+  enterRoom({id:joinReq.id,pid:d.pid,since:d.since,lang:joinSel,name:name||"Guest",creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+};
+$("#jcancel").onclick=()=>{ joinsheet.hidden=true; pendingJoin=null; };
+async function resumeSaved(){
+  const s=savedRoom(); if(!s||!s.id||!s.pid) return;
+  const {r,d}=await api("POST","/api/rooms/"+s.id+"/join",{name:s.name,lang:s.lang,tone:toneEl.value,pid:s.pid});
+  if(!r.ok){ if(r.status===404||r.status===410||r.status===409){ clearRoom(); joinUi=s.lang||"English"; say(tt("gone")); } return; }
+  enterRoom({id:s.id,pid:d.pid,since:Math.max(s.since||0,d.since),lang:s.lang,name:s.name,creator:d.creator,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+}
+
+// ---- starting ----
+function openStart(){
+  $("#stname").value=get("myname","");
+  const sl=$("#stlang"); sl.replaceChildren(); for(const l of LANGS) sl.add(new Option(NATIVE[l]+" ("+l+")",l)); sl.value=deviceLang()||la.value;
+  const ss=$("#stsize"); ss.replaceChildren(); for(let n=2;n<=10;n++) ss.add(new Option(String(n),String(n))); ss.value="4";
+  $("#stmsg").textContent=""; $("#stgo").disabled=false; startsheet.hidden=false;
+}
+$("#stgo").onclick=async()=>{
+  unlockSpeech(); $("#stgo").disabled=true; $("#stmsg").textContent="…";
+  const name=$("#stname").value.trim(), lang=$("#stlang").value;
+  const {r,d}=await api("POST","/api/rooms",{name,lang,tone:toneEl.value,max_size:parseInt($("#stsize").value,10)});
+  if(!r.ok){ $("#stmsg").textContent=d.detail||"Could not start. Please try again."; $("#stgo").disabled=false; return; }
+  put("myname",name); startsheet.hidden=true;
+  enterRoom({id:d.room,pid:d.pid,since:d.since,lang,name:name||"Guest",creator:true,max_size:d.max_size,ceiling:d.ceiling,people:d.people});
+  openRoomSheet();                                          // straight to the share screen
+};
+$("#stcancel").onclick=()=>{ startsheet.hidden=true; };
+startsheet.onclick=e=>{ if(e.target===startsheet) startsheet.hidden=true; };
+$("#roomstart").onclick=openStart;
+$("#sroom").onclick=()=>{ sheet.hidden=true; openStart(); };
+
+// ---- being in a conversation ----
+function enterRoom(x){
+  room={id:x.id,pid:x.pid,since:x.since||0,name:x.name,creator:!!x.creator,max:x.max_size||4,ceiling:x.ceiling||10,people:x.people||[],ended:false};
+  roomMode=true; roomLang=x.lang; joinUi=x.lang;
+  document.body.classList.add("room");
+  inp.disabled=false; go.disabled=false; log.replaceChildren(); pendingMine.length=0;
+  paintRoomLang(); saveRoom(); updateChip(); applyMode(); keepAwake();
+  document.addEventListener("pointerdown",()=>unlockSpeech(),{once:true});    // after a reload, the first tap turns the sound back on
+  roomLoop();
+}
+async function leaveRoom(tell,notice){
+  const old=room; roomMode=false; room=null;               // this ends the loop
+  try{ roomAbort&&roomAbort.abort(); }catch(e){}
+  clearRoom(); releaseAwake(); if(canSpeak) speechSynthesis.cancel();
+  document.body.classList.remove("room"); inp.disabled=false; go.disabled=false; pendingMine.length=0; deferredSpeech.length=0;
+  log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:emptyText()}));
+  applyMode(); updateChip();
+  if(notice) say(notice);
+  if(tell&&old) api("POST","/api/rooms/"+old.id+"/leave",{pid:old.pid});
+}
+async function roomLoop(){
+  if(roomLoopOn) return; roomLoopOn=true;
+  let fails=0;
+  while(roomMode&&room){
+    const id=room.id, pid=room.pid;
+    try{
+      roomAbort=new AbortController();
+      const r=await fetch("/api/rooms/"+id+"/events?pid="+encodeURIComponent(pid)+"&since="+room.since+"&wait=20",{headers:authHeaders(),signal:roomAbort.signal});
+      if(!roomMode||!room||room.id!==id) break;
+      if(r.status===401){ put("pass",""); passcode=""; showLock("The passcode is not right any more. Please enter it again."); await sleep(3000); continue; }
+      if(r.status===404){                                   // the server forgot us (we were silent too long): come back in
+        const j=await api("POST","/api/rooms/"+id+"/join",{name:room.name,lang:roomLang,tone:toneEl.value,pid});
+        if(j.r.ok){ room.pid=j.d.pid; saveRoom(); continue; }
+        sysLine(tt("gone")); room.ended=true; break;
+      }
+      if(r.status===410){ sysLine(tt("ended")); room.ended=true; inp.disabled=true; go.disabled=true; break; }
+      const d=await r.json(); fails=0;
+      handleRoomData(d);
+      if(d.closed){ room.ended=true; inp.disabled=true; go.disabled=true; break; }
+    }catch(e){
+      if(e.name==="AbortError") continue;                   // we aborted on purpose (coming back to the page): ask again at once
+      fails++; if(fails===2) say(tt("offline")); await sleep(Math.min(8000,1000*fails));
+    }
+  }
+  roomLoopOn=false;
+}
+function handleRoomData(d){
+  room.people=d.people||room.people; room.max=d.max_size||room.max; room.since=d.last; saveRoom(); updateChip(); say("");
+  for(const ev of d.events) renderRoomEvent(ev);
+  if(!roomsheet.hidden) renderRoomSheet();
+}
+
+// ---- showing and speaking messages ----
+function sysLine(text){
+  $("#empty")?.remove();
+  const d=document.createElement("div"); d.className="sys"; d.textContent=text; log.append(d); log.scrollTop=log.scrollHeight;
+}
+function bubble(o){
+  $("#empty")?.remove();
+  const m=document.createElement("div"); m.className="msg "+(o.mine?"b":"a");
+  const w=document.createElement("div"); w.className="who"; w.textContent=o.who;
+  const og=document.createElement("div"); og.className="orig"; og.textContent=o.orig||""; og.hidden=!o.orig;
+  const t=document.createElement("div"); t.className="tr"; t.textContent=o.text;
+  const row=document.createElement("div"); row.className="row"; const x=document.createElement("div"); x.className="meta"; row.append(x);
+  m.append(w,og,t,row); log.append(m); log.scrollTop=log.scrollHeight;
+  return {m,t,x,row};
+}
+function renderRoomEvent(ev){
+  if(ev.kind==="join") return sysLine(tt("joined",{n:ev.name}));
+  if(ev.kind==="leave") return sysLine(tt("left",{n:ev.name}));
+  if(ev.kind==="end"){ room.ended=true; inp.disabled=true; go.disabled=true; return sysLine(tt("ended")); }
+  if(ev.kind!=="message") return;
+  if(ev.mine){                                              // the server's copy of what I sent
+    const ui=pendingMine.shift();
+    if(ui) ui.x.textContent="✓"; else bubble({mine:true,who:room.name,text:ev.text});
+    return;
+  }
+  const showScript=roomLang==="Assamese"&&script&&ev.n;     // Assamese in script, if that is what this phone shows
+  const shown=showScript?ev.n:ev.text;
+  const ui=bubble({mine:false,who:ev.from+" · "+(NATIVE[ev.from_lang]||ev.from_lang),orig:ev.translated?ev.original:"",text:shown});
+  let say=ev.text, voiceFor=roomLang;                       // Latin text goes to the Indian-English voice, script to an Assamese/Bengali one
+  if(roomLang==="Assamese"&&ev.n&&(showScript||scriptVoice())){ say=ev.n; voiceFor="AssameseScript"; }
+  const p=document.createElement("button"); p.className="play"; p.textContent="▶"; p.setAttribute("aria-label","Play");
+  p.onclick=()=>speak(say,voiceFor,p,ui.x); ui.row.append(p);
+  if(ev.translated&&ev.ok){
+    const w=document.createElement("button"); w.type="button"; w.className="ghost wrongbtn"; w.textContent="Wrong?";
+    w.onclick=()=>openFix(ui,{frm:ev.from_lang,to:roomLang,tone:"auto",text:ev.original,wrong:shown,form:roomLang==="Assamese"?(script?"Assamese script":"Latin letters"):""});
+    ui.row.append(w);
+  }
+  if(!ev.ok){ const w=document.createElement("div"); w.className="warn"; w.textContent=tt("notsure"); ui.m.append(w); return; }
+  if(autoPlay()){ const go_=()=>speak(say,voiceFor,p,ui.x,true); if(rec) deferredSpeech.push(go_); else go_(); }
+}
+async function sendRoom(via){
+  const text=inp.value.trim(); if(!text||!room) return;
+  if(room.ended){ say(tt("ended")); return; }
+  inp.value=""; go.disabled=true; unlockSpeech(); setState("thinking");
+  const ui=bubble({mine:true,who:room.name,text}); pendingMine.push(ui);
+  try{
+    const {r,d}=await api("POST","/api/rooms/"+room.id+"/messages",{pid:room.pid,text});
+    if(!r.ok) throw new Error(d.detail||r.status);
+  }catch(e){
+    const i=pendingMine.indexOf(ui); if(i>=0) pendingMine.splice(i,1);
+    ui.m.classList.add("err"); ui.x.textContent=tt("notsent")+" ("+(e.message||e)+")";
+  }
+  if(stateEl.className==="thinking") setState("idle");
+  if(!room||!room.ended) go.disabled=false;
+  if(!via) inp.focus();
+}
+
+// ---- the people / share screen ----
+function roomLink(who){
+  const q=new URLSearchParams({room:room.id}); if(who&&who!=="any"){ q.set("l",who); q.set("v","simple"); }
+  return location.origin+location.pathname+"#"+q.toString();
+}
+function renderRoomSheet(){
+  $("#rtitle").textContent=tt("people")+" ("+room.people.length+" / "+room.max+")";
+  const box=$("#rpeople"); box.replaceChildren();
+  for(const p of room.people){ const d=document.createElement("div"); d.className="rp"; d.textContent=p.name+" · "+(NATIVE[p.lang]||p.lang)+((p.name===room.name&&p.lang===roomLang)?"   ("+tt("me")+")":""); box.append(d); }
+  $("#rsizebox").hidden=!room.creator; $("#rend").hidden=!room.creator; $("#rend").textContent=tt("end");
+  $("#rleave").textContent=tt("leave"); $("#rinvite").textContent=tt("invite_more");
+  const rs=$("#rsize"); if(!rs.options.length||rs.options.length!==room.ceiling-1){ rs.replaceChildren(); for(let n=2;n<=room.ceiling;n++) rs.add(new Option(String(n),String(n))); }
+  rs.value=String(room.max);
+}
+async function drawRoomQR(){
+  roomLinkText=roomLink($("#rwho").value);
+  const img=$("#rqr"), msg=$("#rmsg"); img.removeAttribute("src");
+  try{
+    const r=await fetch("/api/qr",{method:"POST",headers:authHeaders(),body:JSON.stringify({text:roomLinkText})});
+    if(!r.ok) throw new Error((await r.json()).detail||r.status);
+    img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(await r.text()); msg.textContent="";
+  }catch(e){ msg.textContent="Could not make the code: "+(e.message||e); }
+}
+function openRoomSheet(){ if(!room) return; renderRoomSheet(); roomsheet.hidden=false; drawRoomQR(); }
+$("#roombtn").onclick=openRoomSheet;
+$("#rwho").onchange=drawRoomQR;
+$("#rclose").onclick=()=>{ roomsheet.hidden=true; $("#rqr").removeAttribute("src"); roomLinkText=""; };
+roomsheet.onclick=e=>{ if(e.target===roomsheet) $("#rclose").click(); };
+$("#rcopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(roomLinkText); $("#rmsg").textContent="Link copied."; }catch(e){ $("#rmsg").textContent="Could not copy. Send a screenshot of the code instead."; } };
+if(navigator.share) $("#rshare").onclick=()=>navigator.share({title:"PolyGo",text:"Join our conversation:",url:roomLinkText}).catch(()=>{});
+else $("#rshare").hidden=true;
+$("#rinvite").onclick=()=>{ roomsheet.hidden=true; invsheet.hidden=false; drawInvite(); };
+$("#rsize").onchange=async e=>{
+  const {r,d}=await api("POST","/api/rooms/"+room.id+"/size",{pid:room.pid,max_size:parseInt(e.target.value,10)});
+  if(r.ok){ room.max=d.max_size; renderRoomSheet(); $("#rmsg").textContent=""; } else { $("#rmsg").textContent=d.detail||""; e.target.value=String(room.max); }
+};
+$("#rfsm").onclick=()=>$("#fsm").click(); $("#rfsp").onclick=()=>$("#fsp").click();
+$("#rleave").onclick=()=>{ roomsheet.hidden=true; leaveRoom(true); };
+$("#rend").onclick=async()=>{ if(!confirm(tt("end")+"?")) return; await api("POST","/api/rooms/"+room.id+"/end",{pid:room.pid}); roomsheet.hidden=true; };
+$("#roomlang").onchange=async e=>{
+  if(!room) return; const l=e.target.value;
+  const {r,d}=await api("POST","/api/rooms/"+room.id+"/profile",{pid:room.pid,lang:l});
+  if(r.ok){ roomLang=l; joinUi=l; saveRoom(); applyMode(); } else { e.target.value=roomLang; say(d.detail||""); }
+};
+
+// A link opened in a tab where PolyGo is already running only changes the part after the "#": run the
+// normal start-up path again so the room or setup in it is not ignored. (The address is wiped after reading, so no loop.)
+window.addEventListener("hashchange",()=>{ if(location.hash.length>1) location.reload(); });
+
 /* ---- menu and mode switching ---- */
 const sheet=$("#sheet");
 const emptyText=()=>simple?"":"Type what was said in either language. It translates into the other one.";   // the simple view's hint lives in the text box
@@ -526,7 +888,7 @@ function applyMode(){
   document.body.style.setProperty("--fs",String(fs));
   refreshMics();
   const e=$("#empty"); if(e) e.textContent=emptyText();
-  inp.placeholder=simple?"Type, or tap a button and speak":"Type here, or tap a microphone…";
+  inp.placeholder=roomMode?tt("hint"):(simple?"Type, or tap a button and speak":"Type here, or tap a microphone…");
   go.textContent=simple?"➤":"Translate"; go.setAttribute("aria-label","Translate");
   setState("idle");
 }
