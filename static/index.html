@@ -119,6 +119,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 <div id="sheet" hidden>
   <div class="sheetcard">
     <h2>PolyGo</h2>
+    <button id="sinvite" type="button">Invite someone (QR)</button>
     <div class="sheetrow"><button id="fsm" type="button" aria-label="Smaller text">A−</button><button id="fsp" type="button" aria-label="Larger text">A+</button></div>
     <button id="snew" type="button">New conversation</button>
     <button id="sfull" type="button">All settings (full view)</button>
@@ -531,6 +532,7 @@ function applyMode(){
 }
 $("#more").onclick=()=>{ sheet.hidden=false; };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
+$("#sinvite").onclick=()=>{ sheet.hidden=true; invsheet.hidden=false; drawInvite(); };   // the same invite screen as in the full view's settings
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
 $("#fsm").onclick=()=>{ fs=Math.max(0.8,+(fs-0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
 $("#fsp").onclick=()=>{ fs=Math.min(1.9,+(fs+0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
