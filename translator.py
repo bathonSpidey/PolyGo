@@ -1,10 +1,11 @@
 """Translation engine: wraps Claude Code. Text in, dict out: {t, ok, from, n}."""
-import json, os, re, subprocess
+import json, os, re, shutil, subprocess
 
 import corrections
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CLAUDE = os.path.expanduser("~/.npm-global/bin/claude")
+# Where the Claude CLI is: an explicit setting, else whatever is on the PATH, else the usual npm location.
+CLAUDE = os.environ.get("POLYGO_CLAUDE") or shutil.which("claude") or os.path.expanduser("~/.npm-global/bin/claude")
 MODEL = os.environ.get("POLYGO_MODEL", "claude-sonnet-5-5")
 
 
