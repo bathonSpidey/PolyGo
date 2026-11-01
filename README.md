@@ -40,6 +40,8 @@ flowchart LR
 - **Unsure?** The model says so (`ok:false`) and answers in English; the page warns and does not auto-play it.
 - **Family glossary** (`glossary.txt`, private): names, relatives, time words, grammar rules (*tumi … asa*, *apuni … ase*) and example sentences the model must follow.
 - **Learns as we go:** a **Wrong?** button on every answer lets anyone type the right wording. It is saved (`corrections.jsonl`, private, newest 200 kept), a fresh session picks it up, and **Settings → Saved corrections** lists and deletes them.
+- **Simple view** for parents: two huge mic buttons named in each language's own script (অসমীয়া, Deutsch), a typing box with a send arrow, big text, a banner that says Listening / Translating / Speaking, and a **⋯** menu for text size. Answers are always spoken. Switch it on from the header, or by opening the page with `#simple` (`#full` goes back).
+- **Invite link and QR code:** in the full view, **Settings → Invite someone** makes a link and a QR code that set up another phone: languages, tone, Latin or script, simple or full view and the passcode. The setup travels after the `#` (never sent to a server) and the page erases it from the address bar; the QR is drawn by the server itself (`/api/qr`, `segno`), so the passcode never goes to an outside QR service.
 - Mic, auto-play, play button, speaking speed, one-request-at-a-time queue, automatic restart after 40 turns or a hang.
 
 ## Setup
@@ -78,12 +80,15 @@ A brand-new name can take a while to show up in public DNS. Before travelling, d
 | The model is tricked by the text it translates | The Claude session starts with no tools, no MCP servers and no slash commands, so it can only produce text. Injection attempts are translated, not obeyed. |
 | Hostile text in a correction | Corrections are flattened to one line, length-capped, quoted and labelled as data before they reach the model; only passcode holders can save them. |
 | API docs reveal the API | `/docs`, `/redoc`, `/openapi.json` are disabled. |
+| An invite link leaks | It contains the passcode, so anyone who gets the link or QR can use PolyGo: share it with family only. It is never sent to a server and is wiped from the address bar, but it can sit in a chat history. Changing the passcode (edit `passcode.txt`, restart) invalidates every old link. A planned upgrade is one-time invites that give each phone its own revocable key. |
 
 Honest limits: the passcode is one shared secret, so treat it like a Wi-Fi password. The Claude login on the Pi cannot be restricted to "translator only"; if the Pi is lost, sign out all Claude sessions and remove the device in Tailscale. Chrome's speech recogniser sends audio to Google. The engine is the Claude Code CLI, not the API; `translator.py` is the only file that touches it, so it can be swapped (check Anthropic's current terms for how you may use it).
 
 ## Roadmap
 
 - [x] Translation, tone, glossary, mic, voices, passcode, public HTTPS link, "Wrong?" corrections
+- [x] Parent-friendly, step 1 and 2: simple view with typing box, invite link and QR
+- [ ] Parent-friendly, next: clearer errors and keep-awake, **quick phrases** (verified, instant, optionally in a family voice), a shared **family room** across phones, app labels in Assamese and German, home-screen icon
 - [ ] iPhone test over the public link (mic, speech, auto-play)
 - [ ] Android: check which voices the phone offers (the page shows the voice used)
 - [ ] **Wi-Fi setup hotspot** so the Pi can join new networks (flow below), protected by its own password

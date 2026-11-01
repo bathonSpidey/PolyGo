@@ -92,13 +92,18 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden]{display:none}
-.sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px}
+#sheet,#invsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#invsheet[hidden]{display:none}
+.sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
 .sheetrow{display:flex;gap:10px}
 .sheetrow button{flex:1;font-weight:700}
+.invf{display:flex;flex-direction:column;gap:4px;font-size:.75em;color:var(--mute)}
+.invf select{font-size:1.15em;padding:10px}
+.sheetcard>*{flex-shrink:0}
+#invqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
+.sheetcard .note{font-size:.7em;color:var(--mute);margin:0}
 </style>
 </head>
 <body>
@@ -118,6 +123,31 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
     <button id="snew" type="button">New conversation</button>
     <button id="sfull" type="button">All settings (full view)</button>
     <button id="sclose" type="button">Close</button>
+  </div>
+</div>
+<div id="invsheet" hidden>
+  <div class="sheetcard">
+    <h2>Invite someone</h2>
+    <label class="invf">Who is it for
+      <select id="invwho">
+        <option value="asm">Assamese-speaking family, big buttons</option>
+        <option value="ger">German-speaking family, big buttons</option>
+        <option value="me">Another phone of mine, full view</option>
+      </select></label>
+    <label class="invf">Tone
+      <select id="invtone">
+        <option value="formal">Formal (apuni / Sie)</option>
+        <option value="informal">Informal (tumi / du)</option>
+        <option value="auto">Match the speaker</option>
+      </select></label>
+    <label class="invf">Assamese is shown as
+      <select id="invscript"><option value="0">Latin letters</option><option value="1">Assamese script</option></select></label>
+    <div id="invwarn" class="warn" hidden>You opened PolyGo on this computer's own address, so phones cannot use this code. Open PolyGo through its public link to invite phones.</div>
+    <img id="invqr" alt="QR code that sets up a phone" width="260" height="260">
+    <div id="invmsg" class="meta"></div>
+    <div class="sheetrow"><button id="invcopy" type="button">Copy link</button><button id="invshare" type="button">Share…</button></div>
+    <p class="note">Anyone who opens this link or scans this code can use PolyGo. Share it with family only.</p>
+    <button id="invclose" type="button">Close</button>
   </div>
 </div>
 <header>
@@ -144,7 +174,8 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
   <details class="cfg"><summary>Voice settings</summary>
     <div id="cfg"></div>
     <label>Speaking speed <input type="range" id="rate" min="0.5" max="1.2" step="0.05"> <span id="rateval"></span></label>
-    <div style="margin-top:8px"><button class="ghost" id="showfix" type="button">Saved corrections</button>
+    <div style="margin-top:8px"><button class="ghost" id="invite" type="button">Invite someone (QR)</button>
+      <button class="ghost" id="showfix" type="button">Saved corrections</button>
       <button class="ghost" id="forget" type="button">Forget passcode on this phone</button></div>
     <div id="fixlist"></div>
   </details>
@@ -157,6 +188,26 @@ const VOICE_TAGS={Assamese:["en-IN","hi-IN","en-GB","en-US"],AssameseScript:["as
 const $=s=>document.querySelector(s);
 const get=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}};
 const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+/* ---- invite link: opening  /#a=..&b=..&t=..&s=..&v=..&k=..  sets this phone up, then the address bar is cleaned.
+   The part after # is never sent to a server. a,b = the two languages, t = tone, s = 1 for Assamese script,
+   v = simple or full view, z = text size, k = the family passcode. "#simple" and "#full" alone also work. ---- */
+const invite=(()=>{
+  const out={k:""};
+  try{
+    const h=new URLSearchParams(location.hash.replace(/^#/,""));
+    const ok=(v,list)=>list.includes(v);
+    if(ok(h.get("a"),LANGS)) put("la",h.get("a"));
+    if(ok(h.get("b"),LANGS)) put("lb",h.get("b"));
+    if(ok(h.get("t"),["formal","informal","auto"])) put("tone",h.get("t"));
+    if(ok(h.get("s"),["0","1"])) put("script",h.get("s"));
+    if(h.get("v")==="simple"||h.has("simple")) put("simple","1");
+    if(h.get("v")==="full"||h.has("full")) put("simple","0");
+    const z=parseFloat(h.get("z")); if(z>=0.8&&z<=1.9) put("fs",String(z));
+    out.k=(h.get("k")||"").trim();
+    if(location.hash) history.replaceState(null,"",location.pathname+location.search);
+  }catch(e){}
+  return out;
+})();
 const la=$("#la"), lb=$("#lb"), inp=$("#inp"), log=$("#log"), go=$("#go");
 for(const sel of [la,lb]) for(const l of LANGS) sel.add(new Option(l,l));
 la.value=get("la","Assamese"); lb.value=get("lb","German");
@@ -235,10 +286,7 @@ auto.onchange=()=>put("auto",auto.checked?"1":"0");
 
 /* ---- simple view + the big status banner ---- */
 const NATIVE={Assamese:"অসমীয়া",German:"Deutsch",English:"English",Hindi:"हिन्दी"};   // language names as people write them
-let simple=get("simple","0")==="1";
-if(/(^|[#&?])simple\b/.test(location.hash)){ simple=true; put("simple","1"); }   // open the page with #simple to start in the simple view
-if(/(^|[#&?])full\b/.test(location.hash)){ simple=false; put("simple","0"); }
-if(location.hash) history.replaceState(null,"",location.pathname+location.search);
+let simple=get("simple","0")==="1";                                               // an invite link or #simple can switch this on
 let fs=parseFloat(get("fs","1"))||1;                                              // text size in the simple view
 const stateEl=$("#state");
 const STATES={idle:"Tap a button and speak",listening:"Listening…",thinking:"Translating…",speaking:"Speaking…"};
@@ -300,7 +348,7 @@ function toggleMic(side){
 $("#mica").onclick=()=>toggleMic("a"); $("#micb").onclick=()=>toggleMic("b");
 
 /* ---- passcode (asked once per phone; the server checks it on every call) ---- */
-let passcode=get("pass","");
+let passcode=invite.k||get("pass","");     // a passcode from an invite link is only kept once the server accepts it
 const lockEl=$("#lock"), lockMsg=$("#lockmsg"), passEl=$("#pass");
 const authHeaders=()=>({"Content-Type":"application/json","X-Passcode":passcode});
 function showLock(msg){ lockMsg.textContent=msg||""; lockEl.hidden=false; passEl.value=""; setTimeout(()=>passEl.focus(),50); }
@@ -321,7 +369,16 @@ $("#lockform").onsubmit=async e=>{
   else lockMsg.textContent={wrong:"That passcode is not right. Please try again.",unset:"The translator has no passcode set up yet.",offline:"Cannot reach the translator. Check your connection.",error:"Something went wrong. Please try again."}[res];
 };
 $("#forget").onclick=()=>{ put("pass",""); passcode=""; showLock(""); };
-(async()=>{ if(!passcode){ showLock(""); return; } const res=await tryPass(passcode); if(res==="wrong"||res==="unset") showLock(res==="wrong"?"The passcode has changed. Please enter the new one.":"The translator has no passcode set up yet."); })();
+(async()=>{
+  if(!passcode){ showLock(""); return; }
+  const res=await tryPass(passcode);
+  if(res==="ok"){
+    if(invite.k){ put("pass",passcode); say("All set. This phone is ready."); setTimeout(()=>say(""),4000); }
+    return;
+  }
+  if(res==="wrong") showLock(invite.k?"The code in this link is not right any more. Ask for a new link.":"The passcode has changed. Please enter the new one.");
+  else if(res==="unset") showLock("The translator has no passcode set up yet.");
+})();
 
 /* ---- "Wrong?" corrections: the family teaches PolyGo as we go ---- */
 function openFix(ui,ctx){
@@ -423,6 +480,42 @@ $("#reset").onclick=async()=>{
   if(canSpeak) speechSynthesis.cancel();
   log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:(simple?"New conversation.":"New conversation. "+emptyText())}));
 };
+
+/* ---- invite someone: a link and QR code that set up another phone ---- */
+const invsheet=$("#invsheet");
+let invLink="";
+function presetFor(who){
+  if(who==="asm") return {a:"Assamese",b:"German",v:"simple"};
+  if(who==="ger") return {a:"German",b:"Assamese",v:"simple"};
+  return {a:la.value,b:lb.value,v:"full"};          // another phone of mine: same pair as this one, full view
+}
+function makeInviteLink(){
+  const p=presetFor($("#invwho").value);
+  const q=new URLSearchParams({a:p.a,b:p.b,t:$("#invtone").value,s:$("#invscript").value,v:p.v,k:passcode});
+  return location.origin+location.pathname+"#"+q.toString();     // after the #, so no server ever receives it
+}
+async function drawInvite(){
+  invLink=makeInviteLink();
+  const img=$("#invqr"), msg=$("#invmsg");
+  img.removeAttribute("src"); msg.textContent="Making the code…";
+  $("#invwarn").hidden=!/^(localhost|127\.|\[?::1)/.test(location.hostname);
+  try{
+    const r=await fetch("/api/qr",{method:"POST",headers:authHeaders(),body:JSON.stringify({text:invLink})});
+    if(!r.ok) throw new Error((await r.json()).detail||r.status);
+    img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(await r.text());
+    msg.textContent="Scan it with the phone's camera, or send the link.";
+  }catch(e){ msg.textContent="Could not make the code: "+(e.message||e); }
+}
+$("#invite").onclick=()=>{ invsheet.hidden=false; drawInvite(); };
+for(const id of ["#invwho","#invtone","#invscript"]) $(id).onchange=drawInvite;
+$("#invclose").onclick=()=>{ invsheet.hidden=true; $("#invqr").removeAttribute("src"); invLink=""; };
+invsheet.onclick=e=>{ if(e.target===invsheet) $("#invclose").click(); };
+$("#invcopy").onclick=async()=>{
+  try{ await navigator.clipboard.writeText(invLink); $("#invmsg").textContent="Link copied."; }
+  catch(e){ $("#invmsg").textContent="Could not copy. Long-press the code or send a screenshot instead."; }
+};
+if(navigator.share) $("#invshare").onclick=()=>navigator.share({title:"PolyGo",text:"Open this link on your phone to set up PolyGo:",url:invLink}).catch(()=>{});
+else $("#invshare").hidden=true;
 
 /* ---- menu and mode switching ---- */
 const sheet=$("#sheet");

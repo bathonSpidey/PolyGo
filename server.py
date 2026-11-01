@@ -1,9 +1,10 @@
 """PolyGo API: one persistent Claude session behind a small web service."""
-import asyncio, hmac, os, re, time
+import asyncio, hmac, io, os, re, time
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
+import segno
 import corrections
 import translator
 
@@ -22,7 +23,7 @@ def _read_passcode():
 
 
 NON_ASCII = re.compile(r"[^\x00-\x7F]")
-SCRIPT_CHARS = re.compile(r"[ঀ-৿]")      # the Bengali-Assamese script block
+SCRIPT_CHARS = re.compile("[" + chr(0x0980) + "-" + chr(0x09FF) + "]")      # the Bengali-Assamese script block (U+0980 to U+09FF)
 PASSCODE = _read_passcode()     # kept out of git; if missing, the API refuses to work (fail closed)
 fail_lock = asyncio.Lock()
 
@@ -187,6 +188,22 @@ async def api_delete_correction(cid: str):
         raise HTTPException(404, "no such correction")
     await engine.reset()
     return {"ok": True}
+
+
+class QR(BaseModel):
+    text: str
+
+
+@app.post("/api/qr", dependencies=[Depends(require_auth)])
+async def api_qr(q: QR):
+    """Draw a QR code for an invite link here, so the passcode inside it never goes to an outside QR service."""
+    text = q.text.strip()
+    if not text.startswith(("http://", "https://")) or len(text) > 800:
+        raise HTTPException(400, "the text must be a link of at most 800 characters")
+    buf = io.BytesIO()
+    segno.make(text, error="m").save(buf, kind="svg", scale=8, border=3, dark="#000000", light="#ffffff",
+                                     xmldecl=False)
+    return Response(buf.getvalue(), media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/reset", dependencies=[Depends(require_auth)])
