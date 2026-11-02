@@ -1,11 +1,12 @@
 """PolyGo API: one persistent Claude session behind a small web service."""
 import asyncio, hmac, io, os, re, time
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 import segno
 import corrections
+import devices
 import rooms
 import translator
 
@@ -33,14 +34,43 @@ def _passcode_ok(sent):
     return bool(PASSCODE) and hmac.compare_digest(sent.encode("utf-8"), PASSCODE.encode("utf-8"))
 
 
-async def require_auth(x_passcode: str = Header(default="")):
+def _device_from(request):
+    return devices.authenticate(request.cookies.get(devices.COOKIE, "") or request.headers.get("x-device", ""))
+
+
+async def _slow_no():
+    async with fail_lock:           # wrong guesses are serialised: at most one per second overall
+        await asyncio.sleep(1)
+
+
+async def require_auth(request: Request, x_passcode: str = Header(default="")):
+    """A known device (its cookie) or, during the changeover, the family passcode."""
+    if _device_from(request):
+        return
     if not PASSCODE:
         raise HTTPException(503, "no passcode is set up on the server")
     if _passcode_ok(x_passcode):
         return
-    async with fail_lock:           # wrong guesses are serialised: at most one per second overall
-        await asyncio.sleep(1)
+    await _slow_no()
     raise HTTPException(401, "wrong passcode")
+
+
+async def require_admin(request: Request):
+    d = _device_from(request)
+    if d is None:
+        await _slow_no()
+        raise HTTPException(401, "this phone is not set up")
+    if not d.get("admin"):
+        raise HTTPException(403, "only an admin can do this")
+    return d
+
+
+def _give_key(response, device, key):
+    """The key lives in a cookie the page's scripts cannot read; it is only sent to this site."""
+    age = 3 * 365 * 86400
+    if device.get("expires_at"):
+        age = max(60, int(device["expires_at"] - time.time()))
+    response.set_cookie(devices.COOKIE, key, max_age=age, httponly=True, secure=True, samesite="strict", path="/")
 
 
 class Engine:
@@ -129,6 +159,11 @@ async def lifespan(app):
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
+@app.exception_handler(devices.DeviceError)
+async def device_error(_request, e):
+    return JSONResponse({"detail": e.detail}, status_code=e.status)
+
+
 @app.exception_handler(rooms.RoomError)
 async def room_error(_request, e):
     return JSONResponse({"detail": e.detail}, status_code=e.status)
@@ -141,6 +176,82 @@ class Req(BaseModel):
     script: bool = False    # write Assamese output in Assamese script instead of Latin letters
     tone: str = "formal"    # formal (apuni/Sie), informal (tumi/du) or auto (mirror the speaker)
     speak_script: bool = False  # also return the Assamese in script, for a phone with an Assamese/Bengali voice
+
+
+class Claim(BaseModel):
+    passcode: str
+    name: str
+    lang: str
+
+
+class Redeem(BaseModel):
+    token: str
+
+
+class InviteNew(BaseModel):
+    name: str
+    lang: str
+    tone: str = "formal"
+    admin: bool = False
+    access_days: int = 0
+    link_hours: float = 0
+
+
+@app.get("/api/me")
+async def api_me(request: Request):
+    """Who is this phone? Public on purpose: a phone that is not set up learns whether it may claim the admin place."""
+    d = _device_from(request)
+    if d:
+        return {"enrolled": True, "device": devices.public(d)}
+    return {"enrolled": False, "can_claim": not devices.have_admin()}
+
+
+@app.post("/api/claim")
+async def api_claim(c: Claim, response: Response):
+    """The very first admin: needs the family passcode, and works only while the server has no admin."""
+    if devices.have_admin():
+        raise HTTPException(409, "this server already has an admin")
+    if not PASSCODE:
+        raise HTTPException(503, "no passcode is set up on the server")
+    if not _passcode_ok(c.passcode):
+        await _slow_no()
+        raise HTTPException(401, "wrong passcode")
+    d, key = devices.claim_admin(c.name, c.lang)
+    _give_key(response, d, key)
+    return {"enrolled": True, "device": devices.public(d)}
+
+
+@app.post("/api/invite/redeem")
+async def api_redeem(r: Redeem, response: Response):
+    try:
+        d, key = devices.redeem(r.token)
+    except devices.DeviceError:
+        await _slow_no()
+        raise
+    _give_key(response, d, key)
+    return {"enrolled": True, "device": devices.public(d)}
+
+
+@app.post("/api/logout")
+async def api_logout(response: Response):
+    response.delete_cookie(devices.COOKIE, path="/")
+    return {"ok": True}
+
+
+@app.post("/api/admin/invites")
+async def admin_invite(i: InviteNew, admin=Depends(require_admin)):
+    inv, token = devices.create_invite(admin, i.name, i.lang, i.tone, i.admin, i.access_days, i.link_hours)
+    return {"token": token, "invite": devices.public_invite(inv)}
+
+
+@app.get("/api/admin/devices")
+async def admin_devices(admin=Depends(require_admin)):
+    return {**devices.listing(), "me": admin["id"]}
+
+
+@app.delete("/api/admin/devices/{did}")
+async def admin_forget(did: str, admin=Depends(require_admin)):
+    return {"removed": devices.forget(did, admin)}
 
 
 @app.post("/api/auth", dependencies=[Depends(require_auth)])

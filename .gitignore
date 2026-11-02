@@ -9,3 +9,5 @@ passcode.txt
 glossary.txt
 corrections.jsonl
 corrections.jsonl.tmp
+devices.json
+.devices-*
