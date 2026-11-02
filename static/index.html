@@ -64,7 +64,7 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 body.simple{font-size:calc(20px*var(--fs,1))}
 body.simple header{padding:8px 14px}
 body.simple header h1{font-size:1em}
-body.simple header .pair, body.simple header .auto, body.simple #scr, body.simple #reset, body.simple #tosimple{display:none}
+body.simple #reset{display:none}
 body.simple #more{display:inline-block;padding:8px 14px;font-size:1.2em}
 body.simple #log{padding:14px 12px}
 body.simple .empty{font-size:1.1em;max-width:22ch}
@@ -73,7 +73,6 @@ body.simple .orig{font-size:.8em}
 body.simple .tr{font-size:1.7em;line-height:1.25}
 body.simple .meta, body.simple .wrongbtn{display:none}
 body.simple .play{min-width:60px;height:60px;font-size:1.5em}
-body.simple .cfg{display:none}
 body.simple #status{font-size:.85em}
 body.simple #state{display:block;text-align:center;font-weight:700;font-size:1.15em;padding:12px;border-radius:14px;margin-bottom:10px;background:var(--card);border:1px solid var(--line);color:var(--mute)}
 body.simple #state.listening{background:#b91c1c;border-color:#b91c1c;color:#fff}
@@ -107,9 +106,8 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 /* ---- shared conversations (rooms) ---- */
 #roomlang,#roombtn,#roomstart{display:none}
 body.room #roomlang,body.room #roombtn{display:inline-block}
-body:not(.room):not(.simple) #roomstart{display:inline-block}
-body.room header .pair,body.room #reset,body.room #tosimple,body.room #roomstart,body.room #micb,body.room #more{display:none!important}
-body.room.simple header .auto,body.room.simple #scr{display:none}
+body:not(.room) #roomstart{display:inline-block;font-size:.8em;padding:9px 13px;background:var(--btn);color:#fff;border:0;font-weight:600}
+body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display:none!important}
 #roomlang{font-size:1em;max-width:9em}
 #roombtn{font-size:1.05em;padding:8px 12px}
 .who{font-size:.8em;font-weight:700;color:var(--mute);margin-bottom:2px}
@@ -122,6 +120,13 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
 .sheetcard input[type=text]{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.05em;width:100%}
 .sheetcard input,.sheetcard select,.lockcard input,.fix input{color:var(--ink)}      /* typed text in the main colour, not the label's grey */
 .rp{padding:6px 0;border-bottom:1px solid var(--line);font-size:.9em}
+.sheetcard details.more{border:1px solid var(--line);border-radius:14px;padding:6px 14px}
+.sheetcard details.more summary{padding:10px 0;cursor:pointer;font-size:.95em}
+.sheetcard details.more>*{margin-top:10px}
+.sheetcard details.more>summary{margin-top:0}
+#fixlist{font-size:.8em}
+#cfg{display:flex;flex-direction:column;gap:8px;font-size:.8em;color:var(--mute)}
+#cfg label{display:flex;gap:8px;align-items:center;justify-content:space-between}
 #rqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(60vw,220px);height:auto;aspect-ratio:1/1;flex:none}
 </style>
 </head>
@@ -138,11 +143,29 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
 <div id="sheet" hidden>
   <div class="sheetcard">
     <h2>PolyGo</h2>
+    <div class="sheetrow"><button id="fsm" type="button" aria-label="Zoom out: smaller text">🔍 −</button><button id="fsp" type="button" aria-label="Zoom in: larger text">🔍 +</button></div>
+    <div id="pairrows">
+      <label class="invf">Change language from<select id="la" aria-label="Change language from"></select></label>
+      <label class="invf">Change language to<select id="lb" aria-label="Change language to"></select></label>
+    </div>
     <button id="sinvite" type="button">Invite someone (QR)</button>
-    <button id="sroom" type="button">Start a shared conversation</button>
-    <div class="sheetrow"><button id="fsm" type="button" aria-label="Smaller text">A−</button><button id="fsp" type="button" aria-label="Larger text">A+</button></div>
     <button id="snew" type="button">New conversation</button>
-    <button id="sfull" type="button">All settings (full view)</button>
+    <details class="more"><summary>More settings</summary>
+      <label class="invf">How people are addressed
+        <select id="tone" aria-label="Tone of address">
+          <option value="formal">Formal (apuni / Sie)</option>
+          <option value="informal">Informal (tumi / du)</option>
+          <option value="auto">Match the speaker</option>
+        </select></label>
+      <div class="invf">Assamese is shown as (tap to switch)</div>
+      <button type="button" id="scr"></button>
+      <label class="invf">Speaking speed <span id="rateval"></span><input type="range" id="rate" min="0.5" max="1.2" step="0.05"></label>
+      <div id="cfg"></div>
+      <button type="button" id="showfix">Saved corrections</button>
+      <div id="fixlist"></div>
+      <button type="button" id="forget">Forget passcode on this phone</button>
+    </details>
+    <input type="checkbox" id="auto" checked hidden>
     <button id="sclose" type="button">Close</button>
   </div>
 </div>
@@ -153,7 +176,7 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
       <select id="invwho">
         <option value="asm">Assamese-speaking family, big buttons</option>
         <option value="ger">German-speaking family, big buttons</option>
-        <option value="me">Another phone of mine, full view</option>
+        <option value="me">Another phone of mine</option>
       </select></label>
     <label class="invf">Tone
       <select id="invtone">
@@ -209,7 +232,7 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
     <div class="sheetrow"><button id="rcopy" type="button">Copy link</button><button id="rshare" type="button">Share…</button></div>
     <button id="rinvite" type="button"></button>
     <div id="rmsg" class="meta"></div>
-    <div class="sheetrow"><button id="rfsm" type="button" aria-label="Smaller text">A−</button><button id="rfsp" type="button" aria-label="Larger text">A+</button></div>
+    <div class="sheetrow"><button id="rfsm" type="button" aria-label="Zoom out: smaller text">🔍 −</button><button id="rfsp" type="button" aria-label="Zoom in: larger text">🔍 +</button></div>
     <button id="rleave" type="button"></button>
     <button id="rend" type="button" hidden></button>
     <button id="rclose" type="button">Close</button>
@@ -219,18 +242,9 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
   <h1>PolyGo</h1>
   <select id="roomlang" aria-label="My language"></select>
   <button class="ghost" id="roombtn" aria-label="People">👥 <span id="roomcount"></span></button>
-  <div class="pair"><select id="la" aria-label="First language"></select> ⇄ <select id="lb" aria-label="Second language"></select></div>
-  <button class="ghost" id="scr"></button>
-  <label class="auto">Tone <select id="tone" aria-label="Tone of address">
-    <option value="formal">Formal (apuni / Sie)</option>
-    <option value="informal">Informal (tumi / du)</option>
-    <option value="auto">Match the speaker</option>
-  </select></label>
-  <label class="auto"><input type="checkbox" id="auto"> Auto-play</label>
-  <button class="ghost" id="reset" title="Start a fresh conversation">New</button>
-  <button class="ghost" id="roomstart" title="Start a shared conversation">Shared chat</button>
-  <button class="ghost" id="tosimple" title="Big buttons, nothing else">Simple view</button>
+  <button class="ghost" id="roomstart" title="Start a shared conversation">Make a session</button>
   <button class="ghost" id="more" aria-label="Menu">⋯</button>
+  <button id="reset" type="button" hidden></button>
 </header>
 <main id="log"><p class="empty" id="empty">Type what was said in either language. It translates into the other one.</p></main>
 <footer>
@@ -239,14 +253,6 @@ body.room.simple header .auto,body.room.simple #scr{display:none}
   <div id="state" role="status" aria-live="polite"></div>
   <div class="actions"><button class="mic" id="mica"></button><button class="mic" id="micb"></button></div>
   <button id="go">Translate</button>
-  <details class="cfg"><summary>Voice settings</summary>
-    <div id="cfg"></div>
-    <label>Speaking speed <input type="range" id="rate" min="0.5" max="1.2" step="0.05"> <span id="rateval"></span></label>
-    <div style="margin-top:8px"><button class="ghost" id="invite" type="button">Invite someone (QR)</button>
-      <button class="ghost" id="showfix" type="button">Saved corrections</button>
-      <button class="ghost" id="forget" type="button">Forget passcode on this phone</button></div>
-    <div id="fixlist"></div>
-  </details>
 </footer>
 <script>
 const LANGS=["Assamese","German","English","Hindi"];
@@ -357,11 +363,12 @@ auto.checked=get("auto","1")==="1";
 auto.onchange=()=>put("auto",auto.checked?"1":"0");
 
 /* ---- simple view + the big status banner ---- */
-const NATIVE={Assamese:"অসমীয়া",German:"Deutsch",English:"English",Hindi:"हिन्दी"};   // language names as people write them
-let simple=get("simple","0")==="1";                                               // an invite link or #simple can switch this on
+const NATIVE={Assamese:"Axomiya",German:"Deutsch",English:"English",Hindi:"हिन्दी"};   // language names as people write them
+let simple=true;                                                                  // PolyGo has one view now: the simple one
 let fs=parseFloat(get("fs","1"))||1;                                              // text size in the simple view
 /* Shared conversations: this phone's own language decides the words on the page. German and Hindi are
-   written out; the Assamese texts are a DRAFT for the family to correct. English is the fallback. */
+   written out; the Assamese texts are a DRAFT in Latin letters (how the family writes it), for the family to correct.
+   English is the fallback. */
 const UI={
   English:{join_title:"Join the conversation",name_label:"Your name",name_ph:"Name (optional)",lang_label:"I speak",join:"Join",joining:"Joining…",back:"Back",
     idle:"Tap the microphone and speak",listening:"Listening…",thinking:"Translating…",speaking:"Speaking…",hint:"Type, or tap the microphone and speak",
@@ -378,11 +385,11 @@ const UI={
     people:"लोग",leave:"छोड़ें",end:"सबके लिए समाप्त करें",invite_more:"और लोगों को बुलाएँ",me:"मैं",untranslated:"आपके लिए अनुवाद नहीं हुआ",
     joined:"{n} शामिल हुए",left:"{n} ने छोड़ा",ended:"बातचीत समाप्त हो गई।",full:"यह बातचीत भरी हुई है।",
     gone:"यह लिंक समाप्त हो गया है या बातचीत खत्म हो चुकी है।",notsure:"पक्का नहीं — अंग्रेज़ी में मतलब दिखा रहे हैं",notsent:"भेज नहीं सके। कृपया फिर कोशिश करें।",offline:"कनेक्शन नहीं है। फिर कोशिश कर रहे हैं…"},
-  Assamese:{join_title:"কথোপকথনত যোগ দিয়ক",name_label:"আপোনাৰ নাম",name_ph:"নাম (ঐচ্ছিক)",lang_label:"মোৰ ভাষা",join:"যোগ দিয়ক",joining:"যোগ দিয়া হৈছে…",back:"উভতি যাওক",
-    idle:"মাইক টিপি কওক",listening:"শুনি আছোঁ…",thinking:"অনুবাদ কৰি আছোঁ…",speaking:"কৈ আছোঁ…",hint:"লিখক, বা মাইক টিপি কওক",
-    people:"মানুহ",leave:"ওলাই যাওক",end:"সকলোৰে বাবে শেষ কৰক",invite_more:"আৰু মানুহক মাতক",me:"মই",untranslated:"আপোনাৰ বাবে অনুবাদ কৰা হোৱা নাই",
-    joined:"{n} যোগ দিলে",left:"{n} ওলাই গ'ল",ended:"কথোপকথন শেষ হ'ল।",full:"এই কথোপকথন পূৰ্ণ হৈ গৈছে।",
-    gone:"এই লিংকৰ সময় শেষ হৈছে বা কথোপকথন শেষ হৈছে।",notsure:"নিশ্চিত নহয় — ইংৰাজীত অৰ্থ দেখুৱাইছোঁ",notsent:"পঠাব পৰা নগ'ল। আকৌ চেষ্টা কৰক।",offline:"সংযোগ নাই। আকৌ চেষ্টা কৰি আছোঁ…"}
+  Assamese:{join_title:"Kothopokothonot jog diyok",name_label:"Apunar nam",name_ph:"Nam (lagib nelage)",lang_label:"Mur bhaxa",join:"Jog diyok",joining:"Jog diya hoise…",back:"Utoti jaok",
+    idle:"Mic tipi kowok",listening:"Xuni asu…",thinking:"Anuwad kori asu…",speaking:"Koi asu…",hint:"Likhok, ba mic tipi kowok",
+    people:"Manuh",leave:"Olai jaok",end:"Sokolure babe bondho korok",invite_more:"Aru manuhok matok",me:"moi",untranslated:"Apunar babe anuwad kora hua nai",
+    joined:"{n} jog dile",left:"{n} olai gol",ended:"Kothopokothon bondho hol.",full:"Ei kothopokothon purno hoi goise.",
+    gone:"Ei linkor somoy pari goise ba kothopokothon bondho hoise.",notsure:"Nixchit nohoy — Ingrajit artha dekhuwa hoise",notsent:"Pothuwa nagol. Aru ekbar sesta korok.",offline:"Network nai. Aru sesta kori asu…"}
 };
 // Which language does this phone suggest? Only the FIRST language setting counts, and English is too ambiguous to trust.
 function deviceLang(){
@@ -598,7 +605,7 @@ let invLink="";
 function presetFor(who){
   if(who==="asm") return {a:"Assamese",b:"German",v:"simple"};
   if(who==="ger") return {a:"German",b:"Assamese",v:"simple"};
-  return {a:la.value,b:lb.value,v:"full"};          // another phone of mine: same pair as this one, full view
+  return {a:la.value,b:lb.value,v:"simple"};          // another phone of mine: same pair as this one
 }
 function makeInviteLink(){
   const p=presetFor($("#invwho").value);
@@ -618,7 +625,6 @@ async function drawInvite(){
     msg.textContent="Scan it with the phone's camera, or send the link.";
   }catch(e){ msg.textContent="Could not make the code: "+(e.message||e); }
 }
-$("#invite").onclick=()=>{ invsheet.hidden=false; drawInvite(); };
 for(const id of ["#invwho","#invtone","#invscript"]) $(id).onchange=drawInvite;
 $("#invclose").onclick=()=>{ invsheet.hidden=true; $("#invqr").removeAttribute("src"); invLink=""; };
 invsheet.onclick=e=>{ if(e.target===invsheet) $("#invclose").click(); };
@@ -722,7 +728,6 @@ $("#stgo").onclick=async()=>{
 $("#stcancel").onclick=()=>{ startsheet.hidden=true; };
 startsheet.onclick=e=>{ if(e.target===startsheet) startsheet.hidden=true; };
 $("#roomstart").onclick=openStart;
-$("#sroom").onclick=()=>{ sheet.hidden=true; openStart(); };
 
 // ---- being in a conversation ----
 function enterRoom(x){
@@ -901,9 +906,7 @@ $("#sinvite").onclick=()=>{ sheet.hidden=true; invsheet.hidden=false; drawInvite
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
 $("#fsm").onclick=()=>{ fs=Math.max(0.8,+(fs-0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
 $("#fsp").onclick=()=>{ fs=Math.min(1.9,+(fs+0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
-$("#sfull").onclick=()=>{ simple=false; put("simple","0"); sheet.hidden=true; applyMode(); };
 $("#snew").onclick=()=>{ sheet.hidden=true; $("#reset").click(); };
-$("#tosimple").onclick=()=>{ simple=true; put("simple","1"); applyMode(); };
 applyMode();
 </script>
 </body>
