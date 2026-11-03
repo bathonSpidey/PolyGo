@@ -381,11 +381,11 @@ class RoomSize(BaseModel):
 
 
 @app.post("/api/rooms", dependencies=[Depends(require_auth)])
-async def room_new(r: RoomNew):
-    """Start a shared conversation; the creator is its first member."""
+async def room_new(r: RoomNew, request: Request):
+    """Start a shared conversation; the creator is its first member. A person's name is their phone's name."""
     room = rooms.create(r.max_size)
     try:
-        p = await room.join(r.name, r.lang, r.tone)
+        p = await room.join(_device_from(request)["name"], r.lang, r.tone)
     except Exception:
         rooms.ROOMS.pop(room.id, None)
         raise
@@ -400,9 +400,9 @@ async def room_info(rid: str):
 
 
 @app.post("/api/rooms/{rid}/join", dependencies=[Depends(require_auth)])
-async def room_join(rid: str, r: RoomJoin):
+async def room_join(rid: str, r: RoomJoin, request: Request):
     room = rooms.get(rid)
-    p = await room.join(r.name, r.lang, r.tone, r.pid)
+    p = await room.join(_device_from(request)["name"], r.lang, r.tone, r.pid)
     return {"pid": p.pid, "name": p.name, "since": p.joined_event, "creator": p.pid == room.creator,
             "ceiling": rooms.ROOM_CEILING, **room.summary()}
 
@@ -445,8 +445,6 @@ async def room_profile(rid: str, r: RoomProfile):
         if r.tone not in rooms.TONES:
             raise HTTPException(400, "unknown tone")
         p.tone = r.tone
-    if rooms.clean_name(r.name):
-        p.name = rooms.clean_name(r.name)
     p.last_seen = time.time()
     return room.summary()
 

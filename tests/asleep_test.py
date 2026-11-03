@@ -21,19 +21,24 @@ def device_key(token):
 PASS = device_key(TOKEN)
 
 
-def call(method, path, body=None):
+def call(method, path, body=None, key=PASS):
     req = urllib.request.Request(BASE + path, method=method, data=json.dumps(body).encode("utf-8") if body is not None else None)
     req.add_header("Content-Type", "application/json")
-    req.add_header("X-Device", PASS)
+    req.add_header("X-Device", key)
     with urllib.request.urlopen(req, timeout=70) as r:
         return json.loads(r.read())
 
 
-r = call("POST", "/api/rooms", {"name": "", "lang": "English", "max_size": 4})
+# two different phones, as in real life: each person's name is their phone's name
+call_inv = call("POST", "/api/admin/invites", {"name": "Fritz", "lang": "de"})
+FRITZ = device_key(call_inv["token"])
+
+
+r = call("POST", "/api/rooms", {"lang": "English", "max_size": 4})
 rid, en = r["room"], {"pid": r["pid"], "since": r["since"]}
-j = call("POST", f"/api/rooms/{rid}/join", {"name": "", "lang": "German"})
+j = call("POST", f"/api/rooms/{rid}/join", {"lang": "German"}, key=FRITZ)
 de = {"pid": j["pid"]}
-assert (r["name"], j["name"]) == ("Guest 1", "Guest 2"), (r["name"], j["name"])
+assert j["name"] == "Fritz" and r["name"] != "Fritz", (r["name"], j["name"])
 time.sleep(6)                                    # the English phone is silent for longer than the presence window
 s = call("POST", f"/api/rooms/{rid}/messages", {"pid": de["pid"], "text": "Wie gehts"})
 d = call("GET", f"/api/rooms/{rid}/events?pid={en['pid']}&since={en['since']}&wait=2")

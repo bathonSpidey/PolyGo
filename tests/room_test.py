@@ -36,6 +36,18 @@ def call(method, path, body=None, passcode=PASS, timeout=70):
             return e.code, {}
 
 
+PHONES = {}
+
+
+def phone(name):
+    """A separate set-up phone for this person (a name in a session is the phone's name)."""
+    if name not in PHONES:
+        s_, d_ = call("POST", "/api/admin/invites", {"name": name, "lang": "en"})
+        assert s_ == 200, (s_, d_)
+        PHONES[name] = device_key(d_["token"])
+    return PHONES[name]
+
+
 def check(label, cond, extra=""):
     results.append(bool(cond))
     print(("PASS " if cond else "FAIL ") + label + (("  -> " + str(extra)) if extra != "" else ""))
@@ -61,18 +73,20 @@ s, _ = call("GET", "/api/rooms/does-not-exist")
 check("unknown room is 404", s == 404, s)
 
 print("== create, join, capacity ==")
-s, ana = call("POST", "/api/rooms", {"name": "Ana", "lang": "Assamese", "tone": "formal", "max_size": 3})
+s, ana = call("POST", "/api/rooms", {"name": "Ana", "lang": "Assamese", "tone": "formal", "max_size": 3}, passcode=phone("Ana"))
 check("room created with size 3", s == 200 and ana.get("max_size") == 3 and ana.get("room"), (s, ana.get("max_size")))
 rid = ana["room"]
 ana = {"pid": ana["pid"], "since": ana["since"]}
 check("room link id is long and random", len(rid) >= 20, len(rid))
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Ben", "lang": "German", "tone": "formal"})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Mallory", "lang": "Assamese", "tone": "formal", "pid": ana["pid"]}, passcode=phone("Ana"))
+check("a name sent by the phone is ignored: the phone's own name is used", s == 200 and any(p["name"] == "Ana" for p in d["people"]) and not any(p["name"] == "Mallory" for p in d["people"]), [p["name"] for p in d.get("people", [])])
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Ben", "lang": "German", "tone": "formal"}, passcode=phone("Ben"))
 ben = {"pid": d["pid"], "since": d["since"]}
 check("German phone joins", s == 200, s)
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Cleo", "lang": "English", "tone": "informal"})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Cleo", "lang": "English", "tone": "informal"}, passcode=phone("Cleo"))
 cleo = {"pid": d["pid"], "since": d["since"]}
 check("English phone joins (3 of 3)", s == 200 and len(d["people"]) == 3, (s, len(d.get("people", []))))
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Dev", "lang": "Hindi", "tone": "formal"})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Dev", "lang": "Hindi", "tone": "formal"}, passcode=phone("Dev"))
 check("a fourth phone is refused when the room is full", s == 409, (s, d.get("detail")))
 s, d = call("POST", f"/api/rooms/{rid}/size", {"pid": ben["pid"], "max_size": 5})
 check("only the creator can change the size", s == 403, s)
@@ -98,7 +112,7 @@ check("original text travels with the translation", mb and mb[0]["original"] == 
 print("== resize, then a latecomer sees no history ==")
 s, d = call("POST", f"/api/rooms/{rid}/size", {"pid": ana["pid"], "max_size": 4})
 check("creator raises the size to 4", s == 200 and d["max_size"] == 4, (s, d.get("max_size")))
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Dev", "lang": "Hindi", "tone": "formal"})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Dev", "lang": "Hindi", "tone": "formal"}, passcode=phone("Dev"))
 dev = {"pid": d["pid"], "since": d["since"]}
 check("Hindi phone now joins", s == 200, (s, d.get("detail")))
 _, d_dev = poll(rid, dev, 0)
@@ -134,7 +148,7 @@ mb = messages(d_ben)
 check("Ben now receives English", mb and mb[-1]["text"].isascii(), mb[-1]["text"] if mb else None)
 s, d = poll(rid, ben, 1)
 check("a quiet poll returns nothing new (reconnect is safe)", s == 200 and d["events"] == [], d["events"])
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Ben", "lang": "English", "tone": "formal", "pid": ben["pid"]})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Ben", "lang": "English", "tone": "formal", "pid": ben["pid"]}, passcode=phone("Ben"))
 check("reloading the page rejoins as the same person, even in a full room", s == 200 and d["pid"] == ben["pid"], (s, d.get("detail")))
 s, d = call("POST", f"/api/rooms/{rid}/leave", {"pid": cleo["pid"]})
 _, d_ana = poll(rid, ana, 2)
@@ -149,20 +163,20 @@ _, d_dev = poll(rid, dev, 2)
 check("everyone is told it ended", d_dev["closed"] and any(e["kind"] == "end" for e in d_dev["events"]), [e["kind"] for e in d_dev["events"]])
 s, d = call("POST", f"/api/rooms/{rid}/messages", {"pid": dev["pid"], "text": "hello"})
 check("nobody can send into an ended room", s == 410, (s, d.get("detail")))
-s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Late", "lang": "German"})
+s, d = call("POST", f"/api/rooms/{rid}/join", {"name": "Late", "lang": "German"}, passcode=phone("Late"))
 check("nobody can join an ended room", s == 410, (s, d.get("detail")))
 
 print("== limits ==")
-s, solo = call("POST", "/api/rooms", {"name": "Solo", "lang": "German"})
+s, solo = call("POST", "/api/rooms", {"name": "Solo", "lang": "German"}, passcode=phone("Solo"))
 codes = []
 for i in range(10):
     codes.append(call("POST", f"/api/rooms/{solo['room']}/messages", {"pid": solo["pid"], "text": f"test {i}"})[0])
 check("a person can send 8 messages per 30 s, then is slowed", codes[:8] == [200] * 8 and 429 in codes[8:], codes)
 s, d = call("POST", f"/api/rooms/{solo['room']}/messages", {"pid": solo["pid"], "text": "x" * 700})
 check("an over-long message is refused", s in (400, 429), (s, d.get("detail")))
-s, d = call("POST", "/api/rooms", {"name": "Tiny", "lang": "German", "max_size": 1})
+s, d = call("POST", "/api/rooms", {"name": "Tiny", "lang": "German", "max_size": 1}, passcode=phone("Tiny"))
 check("a room needs at least 2 places", s == 400, (s, d.get("detail")))
-s, d = call("POST", "/api/rooms", {"name": "X", "lang": "Klingon"})
+s, d = call("POST", "/api/rooms", {"name": "X", "lang": "Klingon"}, passcode=phone("X"))
 check("unknown language is refused", s == 400, (s, d.get("detail")))
 
 print()
