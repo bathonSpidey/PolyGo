@@ -146,6 +146,8 @@ def http():
     s, d = admin.call("GET", "/api/me")
     check("/api/me knows the admin by cookie alone", s == 200 and d["enrolled"] and d["device"]["admin"])
     check("no key or hash is ever returned", "key" not in json.dumps(d))
+    s, d = admin.call("GET", "/api/health")
+    check("a set-up phone gets the health detail", s == 200 and "model" in d and "turns" in d, d)
     s, d = stranger.call("POST", "/api/claim", {"passcode": PASS, "name": "Second", "lang": "en"})
     check("a second claim is refused even with the right passcode", s == 409, s)
     check("/api/me no longer offers a claim", stranger.call("GET", "/api/me")[1] == {"enrolled": False, "can_claim": False})
@@ -184,7 +186,12 @@ def http():
     s, d = stranger.call("POST", "/api/rooms", {"lang": "English", "max_size": 4})
     check("a phone with neither key nor passcode cannot", s == 401, s)
     s, d = stranger.call("POST", "/api/rooms", {"lang": "English", "max_size": 4}, passcode=PASS)
-    check("the old passcode still works for now (changeover)", s == 200, s)
+    check("the family passcode opens nothing any more", s == 401, s)
+    s, d = stranger.call("POST", "/api/translate", {"a": "German", "b": "Assamese", "text": "Hallo"}, passcode=PASS)
+    check("...not even the translator", s == 401, s)
+    s, d = stranger.call("GET", "/api/health", passcode=PASS)
+    check("...and the health check shows no detail for it", s == 200 and d == {"ok": True}, d)
+
     bad = Phone(); bad.cookie = devices.COOKIE + "=" + "A" * 60
     check("a forged key is refused", bad.call("GET", "/api/me")[1].get("enrolled") is False and bad.call("POST", "/api/rooms", {"lang": "English", "max_size": 4})[0] == 401)
     bad.cookie = devices.COOKIE + "=" + "B" * 5000

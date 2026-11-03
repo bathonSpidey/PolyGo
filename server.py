@@ -1,7 +1,7 @@
 """PolyGo API: one persistent Claude session behind a small web service."""
 import asyncio, hmac, io, os, re, time
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel
 import segno
@@ -43,16 +43,13 @@ async def _slow_no():
         await asyncio.sleep(1)
 
 
-async def require_auth(request: Request, x_passcode: str = Header(default="")):
-    """A known device (its cookie) or, during the changeover, the family passcode."""
+async def require_auth(request: Request):
+    """Only a phone that an admin set up (its device key) gets in. The family passcode opens nothing here:
+    it is used once, to claim the very first admin (see /api/claim)."""
     if _device_from(request):
         return
-    if not PASSCODE:
-        raise HTTPException(503, "no passcode is set up on the server")
-    if _passcode_ok(x_passcode):
-        return
     await _slow_no()
-    raise HTTPException(401, "wrong passcode")
+    raise HTTPException(401, "this phone is not set up")
 
 
 async def require_admin(request: Request):
@@ -467,7 +464,7 @@ class QR(BaseModel):
 
 @app.post("/api/qr", dependencies=[Depends(require_auth)])
 async def api_qr(q: QR):
-    """Draw a QR code for an invite link here, so the passcode inside it never goes to an outside QR service."""
+    """Draw a QR code for an invite link here, so the link never goes to an outside QR service."""
     text = q.text.strip()
     if not text.startswith(("http://", "https://")) or len(text) > 800:
         raise HTTPException(400, "the text must be a link of at most 800 characters")
@@ -484,8 +481,8 @@ async def api_reset():
 
 
 @app.get("/api/health")
-async def api_health(x_passcode: str = Header(default="")):
-    if not _passcode_ok(x_passcode):
+async def api_health(request: Request):
+    if _device_from(request) is None:
         return {"ok": True}         # public: just "the service is up"
     return {"ok": True, "model": translator.MODEL, "turns": engine.turns, "corrections": corrections.count(),
             "restarts": engine.restarts, "engine_running": engine.s is not None}

@@ -2,18 +2,29 @@
 
 Start a throwaway server whose 'present' window is short, then run this against it:
   POLYGO_ROOM_ACTIVE_SECONDS=3 uvicorn server:app --host 127.0.0.1 --port 8766
-  python tests/asleep_test.py http://127.0.0.1:8766 <family passcode>
+  python tests/asleep_test.py http://127.0.0.1:8766 <admin invite token>   (from: python devices.py recovery)
 """
 import json, sys, time, urllib.request
 
-BASE = sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: asleep_test.py <base url> <family passcode>")
-PASS = sys.argv[2] if len(sys.argv) > 2 else sys.exit("usage: asleep_test.py <base url> <family passcode>")
+BASE = sys.argv[1] if len(sys.argv) > 1 else sys.exit("usage: asleep_test.py <base url> <admin invite token>")
+TOKEN = sys.argv[2] if len(sys.argv) > 2 else sys.exit("usage: asleep_test.py <base url> <admin invite token>")
+
+
+def device_key(token):
+    """Redeem an admin invite token (python devices.py recovery) and return the device key from its cookie."""
+    req = urllib.request.Request(BASE + "/api/invite/redeem", method="POST", data=json.dumps({"token": token}).encode("utf-8"))
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        cookie = r.headers["Set-Cookie"]
+    return cookie.split(";")[0].split("=", 1)[1]
+
+PASS = device_key(TOKEN)
 
 
 def call(method, path, body=None):
     req = urllib.request.Request(BASE + path, method=method, data=json.dumps(body).encode("utf-8") if body is not None else None)
     req.add_header("Content-Type", "application/json")
-    req.add_header("X-Passcode", PASS)
+    req.add_header("X-Device", PASS)
     with urllib.request.urlopen(req, timeout=70) as r:
         return json.loads(r.read())
 

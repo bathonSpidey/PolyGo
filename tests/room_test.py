@@ -1,12 +1,23 @@
 """End-to-end test of shared conversations against a running PolyGo server (uses the real translator).
 
-Run:  python tests/room_test.py http://127.0.0.1:8765 <family passcode>
+Run:  python tests/room_test.py http://127.0.0.1:8765 <admin invite token>   (from: python devices.py recovery)
 It creates and ends its own rooms; it needs the server and the Claude login to be working."""
 import json, sys, time, urllib.request, urllib.error
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8765"
-PASS = sys.argv[2] if len(sys.argv) > 2 else sys.exit("usage: room_test.py <base url> <family passcode>")
+TOKEN = sys.argv[2] if len(sys.argv) > 2 else sys.exit("usage: room_test.py <base url> <admin invite token>")
 results = []
+
+
+def device_key(token):
+    """Redeem an admin invite token (python devices.py recovery) and return the device key from its cookie."""
+    req = urllib.request.Request(BASE + "/api/invite/redeem", method="POST", data=json.dumps({"token": token}).encode("utf-8"))
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        cookie = r.headers["Set-Cookie"]
+    return cookie.split(";")[0].split("=", 1)[1]
+
+PASS = device_key(TOKEN)      # this test phone's own key
 
 
 def call(method, path, body=None, passcode=PASS, timeout=70):
@@ -14,7 +25,7 @@ def call(method, path, body=None, passcode=PASS, timeout=70):
     req = urllib.request.Request(BASE + path, data=data, method=method)
     req.add_header("Content-Type", "application/json")
     if passcode is not None:
-        req.add_header("X-Passcode", passcode)
+        req.add_header("X-Device", passcode)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, json.loads(r.read() or b"{}")
@@ -43,9 +54,9 @@ def messages(d):
 
 print("== access ==")
 s, _ = call("POST", "/api/rooms", {"name": "x", "lang": "German"}, passcode=None)
-check("no passcode is refused", s == 401, s)
+check("no key is refused", s == 401, s)
 s, _ = call("POST", "/api/rooms", {"name": "x", "lang": "German"}, passcode="wrong")
-check("wrong passcode is refused", s == 401, s)
+check("a wrong key is refused", s == 401, s)
 s, _ = call("GET", "/api/rooms/does-not-exist")
 check("unknown room is 404", s == 404, s)
 

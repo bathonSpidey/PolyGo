@@ -94,8 +94,8 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet,#invsheet,#adminsheet,#devsheet,#joinsheet,#startsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden],#invsheet[hidden],#adminsheet[hidden],#devsheet[hidden],#joinsheet[hidden],#startsheet[hidden],#roomsheet[hidden]{display:none}
+#sheet,#adminsheet,#devsheet,#joinsheet,#startsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#adminsheet[hidden],#devsheet[hidden],#joinsheet[hidden],#startsheet[hidden],#roomsheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
@@ -104,7 +104,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 .invf{display:flex;flex-direction:column;gap:4px;font-size:.75em;color:var(--mute)}
 .invf select{font-size:1.15em;padding:10px}
 .sheetcard>*{flex-shrink:0}
-#invqr,#aiqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
+#aiqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
 .sheetcard .note{font-size:.7em;color:var(--mute);margin:0}
 /* ---- shared conversations (rooms) ---- */
 #roomlang,#roombtn,#roomstart{display:none}
@@ -155,7 +155,6 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <input id="pass" type="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Passcode" aria-label="Family passcode">
     <div id="lockmsg" role="alert"></div>
     <button id="lockgo" type="submit">Set up this phone</button>
-    <button id="locknot" class="ghost" type="button" hidden>Not now</button>
   </form>
   <div class="lockcard" id="nolink" hidden>
     <h2>PolyGo</h2>
@@ -188,7 +187,6 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
       <div id="cfg"></div>
       <button type="button" id="showfix">Saved corrections</button>
       <div id="fixlist"></div>
-      <button type="button" id="forget">Forget passcode on this phone</button>
     </details>
     <input type="checkbox" id="auto" checked hidden>
     <button id="sclose" type="button">Close</button>
@@ -236,31 +234,6 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <button id="devclose" type="button">Close</button>
   </div>
 </div>
-<div id="invsheet" hidden>
-  <div class="sheetcard">
-    <h2>Invite someone</h2>
-    <label class="invf">Who is it for
-      <select id="invwho">
-        <option value="asm">Assamese-speaking family, big buttons</option>
-        <option value="ger">German-speaking family, big buttons</option>
-        <option value="me">Another phone of mine</option>
-      </select></label>
-    <label class="invf">Tone
-      <select id="invtone">
-        <option value="formal">Formal (apuni / Sie)</option>
-        <option value="informal">Informal (tumi / du)</option>
-        <option value="auto">Match the speaker</option>
-      </select></label>
-    <label class="invf">Assamese is shown as
-      <select id="invscript"><option value="0">Latin letters</option><option value="1">Assamese script</option></select></label>
-    <div id="invwarn" class="warn" hidden>You opened PolyGo on this computer's own address, so phones cannot use this code. Open PolyGo through its public link to invite phones.</div>
-    <img id="invqr" alt="QR code that sets up a phone" width="260" height="260">
-    <div id="invmsg" class="meta"></div>
-    <div class="sheetrow"><button id="invcopy" type="button">Copy link</button><button id="invshare" type="button">Share…</button></div>
-    <p class="note">Anyone who opens this link or scans this code can use PolyGo. Share it with family only.</p>
-    <button id="invclose" type="button">Close</button>
-  </div>
-</div>
 <div id="joinsheet" hidden>
   <div class="sheetcard">
     <h2 id="jtitle"></h2>
@@ -278,7 +251,7 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <label class="invf">Your name (optional)<input id="stname" type="text" maxlength="30" autocomplete="off"></label>
     <label class="invf">Your language<select id="stlang"></select></label>
     <label class="invf">Most phones in it<select id="stsize"></select></label>
-    <p class="note">The link works for 24 hours, and everyone who opens it needs the family passcode. Nothing is saved: messages exist only while the conversation is open.</p>
+    <p class="note">The link works for 24 hours, and only for phones that an admin has set up. Nothing is saved: messages exist only while the conversation is open.</p>
     <div id="stmsg" class="meta"></div>
     <button id="stgo" type="button" class="primary">Start</button>
     <button id="stcancel" type="button">Cancel</button>
@@ -297,7 +270,6 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
       <option value="Hindi">A Hindi speaker, big buttons</option></select></label>
     <img id="rqr" alt="QR code of the conversation link" width="220" height="220">
     <div class="sheetrow"><button id="rcopy" type="button">Copy link</button><button id="rshare" type="button">Share…</button></div>
-    <button id="rinvite" type="button"></button>
     <div id="rmsg" class="meta"></div>
     <div class="sheetrow"><button id="rfsm" type="button" aria-label="Zoom out: smaller text">🔍 −</button><button id="rfsp" type="button" aria-label="Zoom in: larger text">🔍 +</button></div>
     <button id="rleave" type="button"></button>
@@ -330,22 +302,14 @@ const VOICE_TAGS={Assamese:["en-IN","hi-IN","en-GB","en-US"],AssameseScript:["as
 const $=s=>document.querySelector(s);
 const get=(k,d)=>{try{return localStorage.getItem(k)||d}catch(e){return d}};
 const put=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
-/* ---- invite link: opening  /#a=..&b=..&t=..&s=..&v=..&k=..  sets this phone up, then the address bar is cleaned.
-   The part after # is never sent to a server. a,b = the two languages, t = tone, s = 1 for Assamese script,
-   v = simple or full view, z = text size, k = the family passcode. "#simple" and "#full" alone also work. ---- */
+/* ---- links: #i=<token> sets a phone up once (a single-use invite); #room=..&l=..&n=.. joins a shared conversation.
+   The part after # is never sent to a server, and the address bar is cleaned right away. ---- */
+try{ localStorage.removeItem("pass"); }catch(e){}            // the old saved family passcode is gone for good
 const invite=(()=>{
-  const out={k:"",i:""};
+  const out={i:""};
   try{
     const h=new URLSearchParams(location.hash.replace(/^#/,""));
     const ok=(v,list)=>list.includes(v);
-    if(ok(h.get("a"),LANGS)) put("la",h.get("a"));
-    if(ok(h.get("b"),LANGS)) put("lb",h.get("b"));
-    if(ok(h.get("t"),["formal","informal","auto"])) put("tone",h.get("t"));
-    if(ok(h.get("s"),["0","1"])) put("script",h.get("s"));
-    if(h.get("v")==="simple"||h.has("simple")) put("simple","1");
-    if(h.get("v")==="full"||h.has("full")) put("simple","0");
-    const z=parseFloat(h.get("z")); if(z>=0.8&&z<=1.9) put("fs",String(z));
-    out.k=(h.get("k")||"").trim();
     let tok=(h.get("i")||"").replace(/[^A-Za-z0-9_-]/g,"").slice(0,64);               // a single-use invite: kept for this tab until it has been redeemed
     try{ if(tok) sessionStorage.setItem("polygo_inv",tok); else tok=sessionStorage.getItem("polygo_inv")||""; }catch(e){}
     out.i=tok;
@@ -534,24 +498,15 @@ function toggleMic(side){
 }
 $("#mica").onclick=()=>toggleMic("a"); $("#micb").onclick=()=>toggleMic("b");
 
-/* ---- who is this phone? Its device key lives in a cookie (set by an invite link or by the first admin).
-   The old family passcode still works during the changeover. ---- */
-let passcode=invite.k||get("pass","");     // legacy: a passcode from an old invite link is only kept once the server accepts it
-let me=null, legacyOk=false, booting=false;   // me = this phone's device record once it is set up
+/* ---- who is this phone? Its device key lives in a cookie (set by an invite link or by the first admin). ---- */
+let me=null, booting=false;                   // me = this phone's device record once it is set up
 const lockEl=$("#lock"), lockMsg=$("#lockmsg"), passEl=$("#pass"), claimForm=$("#lockform"), noLink=$("#nolink");
-const authHeaders=()=>({"Content-Type":"application/json","X-Passcode":passcode});
+const authHeaders=()=>({"Content-Type":"application/json"});
 const OFFLINE="Cannot reach PolyGo. Check the connection and try again.";
-async function tryPass(p){
-  try{
-    const r=await fetch("/api/auth",{method:"POST",headers:{"X-Passcode":p}});
-    return r.ok?"ok":"no";
-  }catch(e){ return "offline"; }
-}
 async function whoami(){ try{ const r=await fetch("/api/me"); if(r.ok) return await r.json(); }catch(e){} return null; }
 function showNoLink(msg,retry){ claimForm.hidden=true; noLink.hidden=false; $("#nolinkmsg").textContent=msg; $("#retry").hidden=!retry; lockEl.hidden=false; }
 function showClaim(msg){
-  noLink.hidden=true; claimForm.hidden=false; lockMsg.textContent=msg||""; passEl.value="";
-  passEl.hidden=legacyOk; $("#locknot").hidden=!legacyOk; lockEl.hidden=false;
+  noLink.hidden=true; claimForm.hidden=false; lockMsg.textContent=msg||""; passEl.value=""; lockEl.hidden=false;
   setTimeout(()=>$("#cname").focus(),50);
 }
 function applyDevice(d){            // the first time this phone is set up: take over the languages and tone it was given
@@ -561,11 +516,9 @@ function applyDevice(d){            // the first time this phone is set up: take
 }
 const isAdmin=()=>!!(me&&me.admin);
 function paintDevice(){
-  $("#forget").hidden=!!me;                       // a set-up phone is signed out by an admin, not by itself
-  $("#sinvite").hidden=!!me&&!isAdmin();          // only admins can invite; a phone with the old passcode keeps the old invite for now
+  $("#sinvite").hidden=!isAdmin();                // only admins can invite, add admins and manage devices
   $("#sdevices").hidden=!isAdmin();
-  $("#sadmin").hidden=!isAdmin();                 // only an admin can add another admin
-  $("#rinvite").hidden=!!me;                      // inviting into a conversation: the admin panel does it for set-up phones
+  $("#sadmin").hidden=!isAdmin();
   if(isAdmin()) checkAdmins(); else $("#adminnag").hidden=true;
 }
 async function checkAdmins(){                     // nag until there is a second admin
@@ -595,30 +548,25 @@ async function boot(msg){
       showNoLink(r.status===410?"This link has expired. Ask for a new one.":"This link was already used, or it is not valid. Ask for a new one.",false);
       return;
     }
-    legacyOk=false;
-    if(passcode){ legacyOk=(await tryPass(passcode))==="ok"; if(!legacyOk){ passcode=""; put("pass",""); } }
     if(m.can_claim){ showClaim(msg); return; }
-    if(legacyOk){ if(invite.k){ put("pass",passcode); } ready(invite.k?"All set. This phone is ready.":""); return; }
     showNoLink(msg||"This phone is not set up yet. Ask the person who runs PolyGo for a link or a QR code, and open it on this phone.",false);
   } finally { booting=false; }
 }
-function showLock(msg){ boot(msg); }          // older code paths call this when the server says 401
-claimForm.onsubmit=async e=>{
+function showLock(msg){ boot(msg); }          // called when the server says 401: this phone has no access (any more)
+claimForm.onsubmit=async e=>{                 // the very first admin, while the server has none: needs the passcode once
   e.preventDefault();
-  const name=$("#cname").value.trim(), p=legacyOk?passcode:passEl.value.trim();
+  const name=$("#cname").value.trim(), p=passEl.value.trim();
   if(!name){ lockMsg.textContent="Please type a name for this phone."; return; }
   if(!p){ lockMsg.textContent="Please type the passcode."; return; }
   $("#lockgo").disabled=true; lockMsg.textContent="Checking…";
   let r=null, d={};
   try{ r=await fetch("/api/claim",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({passcode:p,name,lang:$("#clang").value})}); d=await r.json().catch(()=>({})); }catch(err){}
   $("#lockgo").disabled=false;
-  if(r&&r.ok){ me=d.device; applyDevice(me); passcode=""; put("pass",""); ready("Welcome, "+me.name+". You are the admin."); return; }
+  if(r&&r.ok){ me=d.device; applyDevice(me); ready("Welcome, "+me.name+". You are the admin."); return; }
   if(r&&r.status===409){ boot(); return; }
   lockMsg.textContent=!r?OFFLINE:(r.status===401?"That passcode is not right. Please try again.":(d.detail||"Something went wrong. Please try again."));
 };
-$("#locknot").onclick=()=>{ if(legacyOk) ready(); };           // an older phone that still has the passcode may carry on for now
 $("#retry").onclick=()=>boot();
-$("#forget").onclick=()=>{ put("pass",""); passcode=""; boot(); };
 boot();
 
 /* ---- "Wrong?" corrections: the family teaches PolyGo as we go ---- */
@@ -641,7 +589,7 @@ function openFix(ui,ctx){
     try{
       const r=await fetch("/api/correct",{method:"POST",headers:authHeaders(),body:JSON.stringify({...ctx,right,note:note.value.trim()})});
       const d=await r.json();
-      if(r.status===401){ put("pass",""); passcode=""; showLock("Access for this phone has ended. Ask for a new link."); }
+      if(r.status===401){ showLock("Access for this phone has ended. Ask for a new link."); }
       if(!r.ok) throw new Error(d.detail||r.status);
       box.replaceChildren(Object.assign(document.createElement("div"),{className:"meta",textContent:"Thanks. PolyGo will use this from now on ("+d.count+" saved)."}));
     }catch(e){ save.disabled=false; msg.textContent="Could not save: "+(e.message||e); }
@@ -686,7 +634,7 @@ async function send(via){
   try{
     const r=await fetch("/api/translate",{method:"POST",headers:authHeaders(),body:JSON.stringify({a:la.value,b:lb.value,text,script,tone:toneEl.value,speak_script:!script&&!!scriptVoice()})});
     const d=await r.json();
-    if(r.status===401){ put("pass",""); passcode=""; showLock("Access for this phone has ended. Ask for a new link."); }
+    if(r.status===401){ showLock("Access for this phone has ended. Ask for a new link."); }
     if(!r.ok) throw new Error(d.detail||r.status);
     ui.t.textContent=d.t;
     ui.m.className="msg "+(d.from===la.value?"a":d.from===lb.value?"b":"x");
@@ -723,41 +671,6 @@ $("#reset").onclick=async()=>{
   log.replaceChildren(Object.assign(document.createElement("p"),{className:"empty",id:"empty",textContent:(simple?"New conversation.":"New conversation. "+emptyText())}));
 };
 
-/* ---- invite someone: a link and QR code that set up another phone ---- */
-const invsheet=$("#invsheet");
-let invLink="";
-function presetFor(who){
-  if(who==="asm") return {a:"Assamese",b:"German",v:"simple"};
-  if(who==="ger") return {a:"German",b:"Assamese",v:"simple"};
-  return {a:la.value,b:lb.value,v:"simple"};          // another phone of mine: same pair as this one
-}
-function makeInviteLink(){
-  const p=presetFor($("#invwho").value);
-  const q=new URLSearchParams({a:p.a,b:p.b,t:$("#invtone").value,s:$("#invscript").value,v:p.v,k:passcode});
-  if(roomMode&&room){ q.set("room",room.id); q.set("l",$("#invwho").value==="me"?roomLang:p.a); }   // inside a conversation, the invite joins it too
-  return location.origin+location.pathname+"#"+q.toString();     // after the #, so no server ever receives it
-}
-async function drawInvite(){
-  invLink=makeInviteLink();
-  const img=$("#invqr"), msg=$("#invmsg");
-  img.removeAttribute("src"); msg.textContent="Making the code…";
-  $("#invwarn").hidden=!/^(localhost|127\.|\[?::1)/.test(location.hostname);
-  try{
-    const r=await fetch("/api/qr",{method:"POST",headers:authHeaders(),body:JSON.stringify({text:invLink})});
-    if(!r.ok) throw new Error((await r.json()).detail||r.status);
-    img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(await r.text());
-    msg.textContent="Scan it with the phone's camera, or send the link.";
-  }catch(e){ msg.textContent="Could not make the code: "+(e.message||e); }
-}
-for(const id of ["#invwho","#invtone","#invscript"]) $(id).onchange=drawInvite;
-$("#invclose").onclick=()=>{ invsheet.hidden=true; $("#invqr").removeAttribute("src"); invLink=""; };
-invsheet.onclick=e=>{ if(e.target===invsheet) $("#invclose").click(); };
-$("#invcopy").onclick=async()=>{
-  try{ await navigator.clipboard.writeText(invLink); $("#invmsg").textContent="Link copied."; }
-  catch(e){ $("#invmsg").textContent="Could not copy. Long-press the code or send a screenshot instead."; }
-};
-if(navigator.share) $("#invshare").onclick=()=>navigator.share({title:"PolyGo",text:"Open this link on your phone to set up PolyGo:",url:invLink}).catch(()=>{});
-else $("#invshare").hidden=true;
 
 /* ---- admin panel: invite a person (a single-use link + QR) and manage devices ---- */
 const adminsheet=$("#adminsheet"), devsheet=$("#devsheet");
@@ -862,7 +775,7 @@ async function api(method,path,body){
   try{ r=await fetch(path,{method,headers:authHeaders(),body:body?JSON.stringify(body):undefined}); }
   catch(e){ return {r:{ok:false,status:0},d:{detail:"offline"}}; }
   try{ d=await r.json(); }catch(e){}
-  if(r.status===401){ put("pass",""); passcode=""; showLock("Access for this phone has ended. Ask for a new link."); }
+  if(r.status===401){ showLock("Access for this phone has ended. Ask for a new link."); }
   return {r,d};
 }
 function savedRoom(){ try{ return JSON.parse(get(ROOMKEY,"")||"null"); }catch(e){ return null; } }
@@ -871,7 +784,7 @@ function clearRoom(){ try{ localStorage.removeItem(ROOMKEY); }catch(e){} }
 async function keepAwake(){ try{ if("wakeLock" in navigator && !wl){ wl=await navigator.wakeLock.request("screen"); wl.addEventListener("release",()=>{ wl=null; }); } }catch(e){} }
 function releaseAwake(){ try{ if(wl) wl.release(); }catch(e){} wl=null; }
 document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible"&&roomMode){ keepAwake(); try{ roomAbort&&roomAbort.abort(); }catch(e){} } });   // coming back: ask again at once
-function onAuthed(){                       // the passcode is accepted: carry on with a link or a conversation we were in
+function onAuthed(){                       // this phone is set up: carry on with a link or a conversation we were in
   if(authedOnce) return; authedOnce=true;
   if(pendingJoin){ const j=pendingJoin; pendingJoin=null; beginJoin(j); } else resumeSaved();
 }
@@ -972,7 +885,7 @@ async function roomLoop(){
       roomAbort=new AbortController();
       const r=await fetch("/api/rooms/"+id+"/events?pid="+encodeURIComponent(pid)+"&since="+room.since+"&wait=20",{headers:authHeaders(),signal:roomAbort.signal});
       if(!roomMode||!room||room.id!==id) break;
-      if(r.status===401){ put("pass",""); passcode=""; showLock("Access for this phone has ended. Ask for a new link."); await sleep(3000); continue; }
+      if(r.status===401){ showLock("Access for this phone has ended. Ask for a new link."); await sleep(3000); continue; }
       if(r.status===404){                                   // the server forgot us (we were silent too long): come back in
         const j=await api("POST","/api/rooms/"+id+"/join",{name:room.name,lang:roomLang,tone:toneEl.value,pid});
         if(j.r.ok){ room.pid=j.d.pid; saveRoom(); continue; }
@@ -1063,7 +976,7 @@ function renderRoomSheet(){
   const box=$("#rpeople"); box.replaceChildren();
   for(const p of room.people){ const d=document.createElement("div"); d.className="rp"; d.textContent=p.name+" · "+(NATIVE[p.lang]||p.lang)+((p.name===room.name&&p.lang===roomLang)?"   ("+tt("me")+")":""); box.append(d); }
   $("#rsizebox").hidden=!room.creator; $("#rend").hidden=!room.creator; $("#rend").textContent=tt("end");
-  $("#rleave").textContent=tt("leave"); $("#rinvite").textContent=tt("invite_more");
+  $("#rleave").textContent=tt("leave");
   const rs=$("#rsize"); if(!rs.options.length||rs.options.length!==room.ceiling-1){ rs.replaceChildren(); for(let n=2;n<=room.ceiling;n++) rs.add(new Option(String(n),String(n))); }
   rs.value=String(room.max);
 }
@@ -1084,7 +997,6 @@ roomsheet.onclick=e=>{ if(e.target===roomsheet) $("#rclose").click(); };
 $("#rcopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(roomLinkText); $("#rmsg").textContent="Link copied."; }catch(e){ $("#rmsg").textContent="Could not copy. Send a screenshot of the code instead."; } };
 if(navigator.share) $("#rshare").onclick=()=>navigator.share({title:"PolyGo",text:"Join our conversation:",url:roomLinkText}).catch(()=>{});
 else $("#rshare").hidden=true;
-$("#rinvite").onclick=()=>{ roomsheet.hidden=true; invsheet.hidden=false; drawInvite(); };
 $("#rsize").onchange=async e=>{
   const {r,d}=await api("POST","/api/rooms/"+room.id+"/size",{pid:room.pid,max_size:parseInt(e.target.value,10)});
   if(r.ok){ room.max=d.max_size; renderRoomSheet(); $("#rmsg").textContent=""; } else { $("#rmsg").textContent=d.detail||""; e.target.value=String(room.max); }
@@ -1116,7 +1028,7 @@ function applyMode(){
 }
 $("#more").onclick=()=>{ sheet.hidden=false; };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
-$("#sinvite").onclick=()=>{ sheet.hidden=true; if(me) openAdminInvite(); else { invsheet.hidden=false; drawInvite(); } };   // set-up phones: the admin invite; older phones: the passcode invite
+$("#sinvite").onclick=()=>{ sheet.hidden=true; openAdminInvite(); };
 $("#sdevices").onclick=()=>{ sheet.hidden=true; openDevices(); };
 $("#sadmin").onclick=()=>{ sheet.hidden=true; openAdminInvite("admin"); };
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
