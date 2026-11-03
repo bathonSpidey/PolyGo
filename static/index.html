@@ -94,8 +94,8 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet,#invsheet,#joinsheet,#startsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden],#invsheet[hidden],#joinsheet[hidden],#startsheet[hidden],#roomsheet[hidden]{display:none}
+#sheet,#invsheet,#adminsheet,#devsheet,#joinsheet,#startsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#invsheet[hidden],#adminsheet[hidden],#devsheet[hidden],#joinsheet[hidden],#startsheet[hidden],#roomsheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
@@ -104,7 +104,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 .invf{display:flex;flex-direction:column;gap:4px;font-size:.75em;color:var(--mute)}
 .invf select{font-size:1.15em;padding:10px}
 .sheetcard>*{flex-shrink:0}
-#invqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
+#invqr,#aiqr{align-self:center;background:#fff;border-radius:12px;padding:6px;width:min(70vw,260px);height:auto;aspect-ratio:1/1;flex:none}
 .sheetcard .note{font-size:.7em;color:var(--mute);margin:0}
 /* ---- shared conversations (rooms) ---- */
 #roomlang,#roombtn,#roomstart{display:none}
@@ -123,6 +123,18 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
 .sheetcard input[type=text]{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--bg);font-size:1.05em;width:100%}
 .sheetcard input,.sheetcard select,.lockcard input,.lockcard select,.fix input{color:var(--ink)}      /* typed text in the main colour, not the label's grey */
 .rp{padding:6px 0;border-bottom:1px solid var(--line);font-size:.9em}
+#aform,#aresult,#devlist{display:flex;flex-direction:column;gap:12px}
+#aform[hidden],#aresult[hidden]{display:none}
+#adminnag{display:block;width:100%;border:0;background:var(--warnbg);color:var(--warn);padding:8px 12px;font-size:14px;text-align:center;cursor:pointer}
+#adminnag[hidden],body.room #adminnag{display:none}
+.dev{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.dev .who{flex:1;min-width:0}
+.dev .who b{font-size:1em}
+.dev .who .dm{font-size:.7em;color:var(--mute);margin-top:2px}
+.dev button{padding:10px 14px;font-size:.8em;flex:none}
+.dev button.sure{background:#b91c1c;color:#fff;border-color:#b91c1c}
+.tag{display:inline-block;font-size:.65em;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;color:var(--mute)}
+#devlist h3{margin:14px 0 2px;font-size:.8em;color:var(--mute);font-weight:600}
 .sheetcard details.more{border:1px solid var(--line);border-radius:14px;padding:6px 14px}
 .sheetcard details.more summary{padding:10px 0;cursor:pointer;font-size:.95em}
 .sheetcard details.more>*{margin-top:10px}
@@ -160,6 +172,7 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
       <label class="invf">Change language to<select id="lb" aria-label="Change language to"></select></label>
     </div>
     <button id="sinvite" type="button">Invite someone (QR)</button>
+    <button id="sdevices" type="button" hidden>Devices</button>
     <button id="snew" type="button">New conversation</button>
     <details class="more"><summary>More settings</summary>
       <label class="invf">How people are addressed
@@ -178,6 +191,48 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     </details>
     <input type="checkbox" id="auto" checked hidden>
     <button id="sclose" type="button">Close</button>
+  </div>
+</div>
+<div id="adminsheet" hidden>
+  <div class="sheetcard">
+    <h2 id="ahead">Invite someone</h2>
+    <div id="aform">
+      <label class="invf">Name<input id="ainame" type="text" maxlength="30" autocomplete="off" placeholder="For example Smita" aria-label="Name of the person or phone"></label>
+      <label class="invf">Language of this person
+        <select id="ailang"><option value="en">English</option><option value="de">Deutsch</option><option value="hi">हिन्दी</option><option value="as">Axomiya</option></select></label>
+      <label class="invf">Who is it for
+        <select id="aikind">
+          <option value="family">Family: the link never expires</option>
+          <option value="friend">Friend: access ends after some days</option>
+          <option value="admin">Another admin: the link expires in 24 hours</option>
+        </select></label>
+      <label class="invf" id="aidayswrap" hidden>Days of access<input id="aidays" type="number" min="1" max="365" value="1" inputmode="numeric"></label>
+      <label class="invf">Tone
+        <select id="aitone">
+          <option value="formal">Formal (apuni / Sie)</option>
+          <option value="informal">Informal (tumi / du)</option>
+          <option value="auto">Match the speaker</option>
+        </select></label>
+      <div id="aimsg" class="meta" role="alert"></div>
+      <button id="aigo" class="primary" type="button">Create link</button>
+    </div>
+    <div id="aresult" hidden>
+      <div id="aiwarn" class="warn" hidden>You opened PolyGo on this computer's own address, so phones cannot use this link. Open PolyGo through its public link to invite phones.</div>
+      <img id="aiqr" alt="QR code for this invitation" width="260" height="260">
+      <div id="airesmsg" class="meta"></div>
+      <div class="sheetrow"><button id="aicopy" type="button">Copy link</button><button id="aishare" type="button">Share…</button></div>
+      <p class="note">This link works once, on one phone. Treat it like a key. You can cancel it under Devices.</p>
+      <button id="aianother" type="button">Invite someone else</button>
+    </div>
+    <button id="aiclose" type="button">Close</button>
+  </div>
+</div>
+<div id="devsheet" hidden>
+  <div class="sheetcard">
+    <h2>Devices</h2>
+    <div id="devlist"></div>
+    <button id="devinvite" class="primary" type="button">Invite someone</button>
+    <button id="devclose" type="button">Close</button>
   </div>
 </div>
 <div id="invsheet" hidden>
@@ -257,6 +312,7 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
   <button class="ghost" id="more" aria-label="Menu">⋯</button>
   <button id="reset" type="button" hidden></button>
 </header>
+<button id="adminnag" type="button" hidden>Only one admin so far. Tap to invite a second one, so you are never locked out.</button>
 <main id="log"><p class="empty" id="empty">Type what was said in either language. It translates into the other one.</p></main>
 <footer>
   <div id="status" role="status"></div>
@@ -502,9 +558,17 @@ function applyDevice(d){            // the first time this phone is set up: take
   put("tone",d.tone); toneEl.value=d.tone;
   refreshMics();                    // the two big buttons are named after the new pair
 }
+const isAdmin=()=>!!(me&&me.admin);
 function paintDevice(){
-  $("#forget").hidden=!!me;         // a set-up phone is signed out by an admin, not by itself
-  $("#sinvite").hidden=!!me;        // the old passcode invite does not apply to it; the admin panel replaces it
+  $("#forget").hidden=!!me;                       // a set-up phone is signed out by an admin, not by itself
+  $("#sinvite").hidden=!!me&&!isAdmin();          // only admins can invite; a phone with the old passcode keeps the old invite for now
+  $("#sdevices").hidden=!isAdmin();
+  $("#rinvite").hidden=!!me;                      // inviting into a conversation: the admin panel does it for set-up phones
+  if(isAdmin()) checkAdmins(); else $("#adminnag").hidden=true;
+}
+async function checkAdmins(){                     // nag until there is a second admin
+  const {r,d}=await api("GET","/api/admin/devices");
+  $("#adminnag").hidden=!(r.ok&&d.admins<2);
 }
 function clearInvite(){ invite.i=""; try{ sessionStorage.removeItem("polygo_inv"); }catch(e){} }
 function ready(msg){ lockEl.hidden=true; paintDevice(); if(msg){ say(msg); setTimeout(()=>say(""),5000); } onAuthed(); }
@@ -692,6 +756,96 @@ $("#invcopy").onclick=async()=>{
 };
 if(navigator.share) $("#invshare").onclick=()=>navigator.share({title:"PolyGo",text:"Open this link on your phone to set up PolyGo:",url:invLink}).catch(()=>{});
 else $("#invshare").hidden=true;
+
+/* ---- admin panel: invite a person (a single-use link + QR) and manage devices ---- */
+const adminsheet=$("#adminsheet"), devsheet=$("#devsheet");
+let aiLink="";
+function openAdminInvite(kind){
+  $("#ainame").value=""; $("#ailang").value="en"; $("#aikind").value=kind||"family"; $("#aitone").value="formal"; $("#aidays").value="1";
+  $("#aidayswrap").hidden=$("#aikind").value!=="friend";
+  $("#aimsg").textContent=""; $("#aigo").disabled=false;
+  $("#aform").hidden=false; $("#aresult").hidden=true; $("#ahead").textContent="Invite someone";
+  adminsheet.hidden=false; setTimeout(()=>$("#ainame").focus(),50);
+}
+$("#aikind").onchange=()=>{ $("#aidayswrap").hidden=$("#aikind").value!=="friend"; };
+$("#aigo").onclick=async()=>{
+  const name=$("#ainame").value.trim(), kind=$("#aikind").value, msg=$("#aimsg");
+  if(!name){ msg.textContent="Please type a name."; return; }
+  const days=Math.min(365,Math.max(1,parseInt($("#aidays").value,10)||1));
+  $("#aigo").disabled=true; msg.textContent="Making the link…";
+  const {r,d}=await api("POST","/api/admin/invites",{name,lang:$("#ailang").value,tone:$("#aitone").value,admin:kind==="admin",access_days:kind==="friend"?days:0});
+  $("#aigo").disabled=false;
+  if(!r.ok){ msg.textContent=r.status===0?OFFLINE:(d.detail||"Something went wrong. Please try again."); return; }
+  aiLink=location.origin+"/#i="+d.token;
+  $("#ahead").textContent="Link for "+name;
+  $("#aform").hidden=true; $("#aresult").hidden=false;
+  $("#aiwarn").hidden=!/^(localhost|127\.|\[?::1)/.test(location.hostname);
+  const img=$("#aiqr"), rm=$("#airesmsg"); img.removeAttribute("src"); rm.textContent="Making the code…";
+  try{
+    const q=await fetch("/api/qr",{method:"POST",headers:authHeaders(),body:JSON.stringify({text:aiLink})});
+    if(!q.ok) throw new Error((await q.json()).detail||q.status);
+    img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(await q.text());
+    rm.textContent="Scan it with the phone's camera, or send the link.";
+  }catch(e){ rm.textContent="Could not make the code: "+(e.message||e)+". The link still works."; }
+  checkAdmins();
+};
+function closeAdminInvite(){ adminsheet.hidden=true; $("#aiqr").removeAttribute("src"); aiLink=""; }
+$("#aiclose").onclick=closeAdminInvite;
+adminsheet.onclick=e=>{ if(e.target===adminsheet) closeAdminInvite(); };
+$("#aianother").onclick=()=>openAdminInvite();
+$("#aicopy").onclick=async()=>{
+  try{ await navigator.clipboard.writeText(aiLink); $("#airesmsg").textContent="Link copied."; }
+  catch(e){ $("#airesmsg").textContent="Could not copy. Long-press the code or send a screenshot instead."; }
+};
+if(navigator.share) $("#aishare").onclick=()=>navigator.share({title:"PolyGo",text:"Open this link on your phone to set up PolyGo:",url:aiLink}).catch(()=>{});
+else $("#aishare").hidden=true;
+$("#adminnag").onclick=()=>openAdminInvite("admin");
+
+const ago=ts=>{ const m=Math.round((Date.now()/1000-ts)/60); return m<2?"just now":m<90?m+" min ago":m<2880?Math.round(m/60)+" h ago":Math.round(m/1440)+" days ago"; };
+const inDays=ts=>{ const h=(ts-Date.now()/1000)/3600; return h<48?Math.max(1,Math.round(h))+" h":Math.round(h/24)+" days"; };
+function devRow(title,tags,meta,label,onGo){
+  const row=document.createElement("div"); row.className="dev";
+  const who=document.createElement("div"); who.className="who";
+  const b=document.createElement("b"); b.textContent=title; who.append(b);
+  for(const t of tags){ const sp=document.createElement("span"); sp.className="tag"; sp.textContent=t; who.append(sp); }
+  const m=document.createElement("div"); m.className="dm"; m.textContent=meta; who.append(m);
+  row.append(who);
+  if(label){
+    const btn=document.createElement("button"); btn.type="button"; btn.textContent=label; let armed=false, timer=0;
+    btn.onclick=async()=>{                                      // two taps, so nothing is removed by accident
+      if(!armed){ armed=true; btn.textContent="Sure?"; btn.classList.add("sure"); timer=setTimeout(()=>{ armed=false; btn.textContent=label; btn.classList.remove("sure"); },4000); return; }
+      clearTimeout(timer); btn.disabled=true; btn.textContent="…"; loadDevices(await onGo());
+    };
+    row.append(btn);
+  }
+  return row;
+}
+async function loadDevices(err){
+  const box=$("#devlist"); const {r,d}=await api("GET","/api/admin/devices");
+  if(!r.ok){ box.textContent=r.status===0?OFFLINE:(d.detail||"Could not load the list."); return; }
+  box.replaceChildren();
+  if(err){ const e=document.createElement("div"); e.className="warn"; e.textContent=err; box.append(e); }
+  if(d.admins<2){ const w=document.createElement("div"); w.className="warn"; w.textContent="Only one admin. Invite a second admin so you are never locked out."; box.append(w); }
+  const h1=document.createElement("h3"); h1.textContent="Phones"; box.append(h1);
+  for(const x of d.devices){
+    const tags=[]; if(x.admin) tags.push("admin"); if(x.id===d.me) tags.push("this phone");
+    const meta=(NATIVE[x.lang]||x.lang)+" · used "+ago(x.last_used)+(x.expires_at?" · access ends in "+inDays(x.expires_at):"");
+    box.append(devRow(x.name,tags,meta,x.id===d.me?"":"Remove",async()=>{ const q=await api("DELETE","/api/admin/devices/"+x.id); return q.r.ok?"":(q.d.detail||"Could not remove it."); }));
+  }
+  if(d.invites.length){
+    const h2=document.createElement("h3"); h2.textContent="Waiting to be opened"; box.append(h2);
+    for(const x of d.invites){
+      const kind=x.admin?"admin":(x.access_days?"friend, "+x.access_days+(x.access_days===1?" day":" days")+" of access":"family");
+      const meta=(NATIVE[x.lang]||x.lang)+" · "+kind+" · "+(x.link_expires?"link ends in "+inDays(x.link_expires):"link never expires");
+      box.append(devRow(x.name,[],meta,"Cancel",async()=>{ const q=await api("DELETE","/api/admin/devices/"+x.id); return q.r.ok?"":(q.d.detail||"Could not cancel it."); }));
+    }
+  }
+  $("#adminnag").hidden=d.admins>=2;
+}
+function openDevices(){ devsheet.hidden=false; $("#devlist").textContent="Loading…"; loadDevices(); }
+$("#devclose").onclick=()=>{ devsheet.hidden=true; };
+devsheet.onclick=e=>{ if(e.target===devsheet) devsheet.hidden=true; };
+$("#devinvite").onclick=()=>{ devsheet.hidden=true; openAdminInvite(); };
 
 /* ---- shared conversations (rooms): start, join, live updates ---- */
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -960,7 +1114,8 @@ function applyMode(){
 }
 $("#more").onclick=()=>{ sheet.hidden=false; };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
-$("#sinvite").onclick=()=>{ sheet.hidden=true; invsheet.hidden=false; drawInvite(); };   // the same invite screen as in the full view's settings
+$("#sinvite").onclick=()=>{ sheet.hidden=true; if(me) openAdminInvite(); else { invsheet.hidden=false; drawInvite(); } };   // set-up phones: the admin invite; older phones: the passcode invite
+$("#sdevices").onclick=()=>{ sheet.hidden=true; openDevices(); };
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
 $("#fsm").onclick=()=>{ fs=Math.max(0.8,+(fs-0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
 $("#fsp").onclick=()=>{ fs=Math.min(1.9,+(fs+0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
