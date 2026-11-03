@@ -234,6 +234,21 @@ def authenticate(key):
         return d
 
 
+def set_lang(did, lang):
+    """The phone's own language dropdown: its page language and the language it speaks (and so who it talks with)."""
+    with _lock:
+        _load()
+        d = _state["devices"].get(did)
+        if d is None:
+            raise DeviceError(404, "this phone is not set up")
+        name = lang_name(lang)
+        if not name:
+            raise DeviceError(400, "unknown language")
+        d["lang"], d["partner"] = name, PARTNER[name]
+        _save()
+        return d
+
+
 def forget(did, by):
     """Remove a device, or cancel an open invite with this id. The last admin can never be removed."""
     with _lock:

@@ -181,6 +181,10 @@ class Claim(BaseModel):
     lang: str
 
 
+class Profile(BaseModel):
+    lang: str
+
+
 class Redeem(BaseModel):
     token: str
 
@@ -201,6 +205,16 @@ async def api_me(request: Request):
     if d:
         return {"enrolled": True, "device": devices.public(d)}
     return {"enrolled": False, "can_claim": not devices.have_admin()}
+
+
+@app.post("/api/me/profile")
+async def api_me_profile(p: Profile, request: Request):
+    """A phone changes its own language (page and speech); nothing else about it."""
+    d = _device_from(request)
+    if d is None:
+        await _slow_no()
+        raise HTTPException(401, "this phone is not set up")
+    return {"device": devices.public(devices.set_lang(d["id"], p.lang))}
 
 
 @app.post("/api/claim")
