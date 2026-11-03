@@ -67,6 +67,8 @@ def parse_multi(raw):
 
 class Session:
     """One long-running claude process; each translation is a new turn."""
+    last_usage = {}
+
     def __init__(self):
         self.p = subprocess.Popen(
             [CLAUDE, "-p", *_flags(), "--input-format", "stream-json",
@@ -81,6 +83,7 @@ class Session:
         for line in self.p.stdout:
             ev = json.loads(line)
             if ev.get("type") == "result":
+                self.last_usage = ev.get("usage") if isinstance(ev.get("usage"), dict) else {}    # token counts for the stats panel
                 raw = ev.get("result") or ""
                 return parse_multi(raw) if multi else parse(raw)
         raise RuntimeError("claude process ended")

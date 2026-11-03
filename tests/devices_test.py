@@ -163,6 +163,8 @@ def http():
     check("admin sees the list, 1 admin", s == 200 and d["admins"] == 1 and len(d["devices"]) == 1)
     s, d = admin.call("DELETE", f"/api/admin/devices/{me}")
     check("the only admin cannot remove itself", s == 409, d)
+    s, d = admin.call("GET", "/api/admin/stats")
+    check("the admin sees the stats (counters, 14 days, engine, Pi)", s == 200 and len(d["days"]) == 14 and "engine" in d and "pi" in d and len(d["devices"]) == 1 and "totals" in d, s)
 
     s, d = admin.call("POST", "/api/admin/invites", {"name": "Smita", "lang": "en"})
     tok = d.get("token", "")
@@ -186,6 +188,8 @@ def http():
     check("Smita is not an admin", s == 403, s)
     s, d = smita.call("POST", "/api/admin/invites", {"name": "Hack", "lang": "en"})
     check("Smita cannot invite", s == 403, s)
+    check("Smita cannot see the stats", smita.call("GET", "/api/admin/stats")[0] == 403)
+    check("a phone without a key cannot see the stats", stranger.call("GET", "/api/admin/stats")[0] == 401)
     s, d = smita.call("POST", "/api/me/profile", {"lang": "as"})
     check("a phone changes its own language (page and speech)", s == 200 and d["device"]["lang"] == "Assamese" and d["device"]["partner"] == "German", (s, d))
     check("...and the plain address now says so", smita.call("GET", "/api/me")[1]["device"]["lang"] == "Assamese")

@@ -11,3 +11,5 @@ corrections.jsonl
 corrections.jsonl.tmp
 devices.json
 .devices-*
+stats.json
+.stats-*

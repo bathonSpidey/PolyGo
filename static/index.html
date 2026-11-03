@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>PolyGo</title>
 <style>
-:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--mute:#6b6b70;--a:#c2410c;--b:#1d4ed8;--warn:#92400e;--warnbg:#fef3c7;--line:#e3e1db;--btn:#1d4ed8}
-@media(prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--ink:#f1f1f3;--mute:#9a9aa2;--a:#fb923c;--b:#60a5fa;--warn:#fde68a;--warnbg:#4a3a12;--line:#2f2f35;--btn:#2563eb}}
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1f;--mute:#6b6b70;--a:#c2410c;--b:#1d4ed8;--warn:#92400e;--warnbg:#fef3c7;--line:#e3e1db;--btn:#1d4ed8;--series:#2a78d6}
+@media(prefers-color-scheme:dark){:root{--bg:#141416;--card:#1e1e22;--ink:#f1f1f3;--mute:#9a9aa2;--a:#fb923c;--b:#60a5fa;--warn:#fde68a;--warnbg:#4a3a12;--line:#2f2f35;--btn:#2563eb;--series:#3987e5}}
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
@@ -94,8 +94,8 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet,#adminsheet,#devsheet,#joinsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden],#adminsheet[hidden],#devsheet[hidden],#joinsheet[hidden],#roomsheet[hidden]{display:none}
+#sheet,#adminsheet,#devsheet,#statssheet,#joinsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#adminsheet[hidden],#devsheet[hidden],#statssheet[hidden],#joinsheet[hidden],#roomsheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
@@ -136,6 +136,35 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
 .dev button.sure{background:#b91c1c;color:#fff;border-color:#b91c1c}
 .tag{display:inline-block;font-size:.65em;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-left:6px;color:var(--mute)}
 #devlist h3{margin:14px 0 2px;font-size:.8em;color:var(--mute);font-weight:600}
+#statsbody{display:flex;flex-direction:column;gap:8px;transition:opacity .15s}
+#statsbody h3{margin:12px 0 0;font-size:.8em;color:var(--mute);font-weight:600}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.tile b{display:block;font-size:1.5em;line-height:1.15}
+.tile span{font-size:.65em;color:var(--mute)}
+.chart{position:relative;padding-top:4px}
+.ymax{position:absolute;left:0;top:-2px;font-size:.6em;color:var(--mute)}
+.cols{display:flex;align-items:flex-end;gap:2px;height:104px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:12px}
+.col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;outline:none}
+.col i{display:block;width:100%;max-width:24px;background:var(--series);border-radius:4px 4px 0 0}
+.col:hover i,.col:focus i{filter:brightness(1.25)}
+.col em{font-style:normal;font-size:.6em;color:var(--ink);margin-bottom:2px}
+.xlab{display:flex;gap:2px;font-size:.6em;color:var(--mute)}
+.xlab span{flex:1;text-align:center}
+.xlab span.today{color:var(--ink);font-weight:700}
+.tip{position:absolute;top:2px;transform:translate(-50%,-100%);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:.7em;white-space:nowrap;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25);z-index:2}
+.tip b{display:block;font-size:1.1em}
+.tip span{color:var(--mute)}
+.kv{display:flex;gap:8px;align-items:baseline;font-size:.85em;border-bottom:1px solid var(--line);padding:4px 0}
+.kv>span:first-child{flex:1;color:var(--mute)}
+.kv .flag{color:var(--warn);background:var(--warnbg);border-radius:6px;padding:0 6px;font-size:.8em}
+.ph{padding:6px 0;border-bottom:1px solid var(--line)}
+.phtop{display:flex;align-items:center;gap:6px}
+.phtop .phn{margin-left:auto;font-size:.85em}
+.phbar{height:6px;border-radius:3px;background:var(--line);margin:4px 0;overflow:hidden}
+.phbar i{display:block;height:100%;background:var(--series);border-radius:3px}
+#statsbody table{width:100%;border-collapse:collapse;font-size:.7em}
+#statsbody td,#statsbody th{padding:3px 6px;border-bottom:1px solid var(--line);text-align:left}
 .sheetcard details.more{border:1px solid var(--line);border-radius:14px;padding:6px 14px}
 .sheetcard details.more summary{padding:10px 0;cursor:pointer;font-size:.95em}
 .sheetcard details.more>*{margin-top:10px}
@@ -174,6 +203,7 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <button id="sinvite" type="button">Invite someone (QR)</button>
     <button id="sadmin" type="button" hidden>Invite another admin</button>
     <button id="sdevices" type="button" hidden>Devices</button>
+    <button id="sstats" type="button" hidden>Stats</button>
     <button id="snew" type="button" data-t="new_conv">New conversation</button>
     <details class="more"><summary data-t="more">More settings</summary>
       <label class="invf"><span data-t="tone_label">How people are addressed</span>
@@ -233,6 +263,13 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <div id="devlist"></div>
     <button id="devinvite" class="primary" type="button">Invite someone</button>
     <button id="devclose" type="button">Close</button>
+  </div>
+</div>
+<div id="statssheet" hidden>
+  <div class="sheetcard">
+    <h2>Stats</h2>
+    <div id="statsbody"></div>
+    <div class="sheetrow"><button id="statsrefresh" type="button">Refresh</button><button id="statsclose" type="button">Close</button></div>
   </div>
 </div>
 <div id="joinsheet" hidden>
@@ -510,6 +547,7 @@ function paintDevice(){
   $("#sinvite").hidden=!isAdmin();                // only admins can invite, add admins and manage devices
   $("#pairrows").hidden=!isAdmin();               // everyone else changes language with the dropdown at the top
   $("#sdevices").hidden=!isAdmin();
+  $("#sstats").hidden=!isAdmin();                 // the numbers are for admins only (the server refuses everyone else too)
   $("#sadmin").hidden=!isAdmin();
   if(isAdmin()) checkAdmins(); else $("#adminnag").hidden=true;
 }
@@ -753,6 +791,76 @@ function openDevices(){ devsheet.hidden=false; $("#devlist").textContent="Loadin
 $("#devclose").onclick=()=>{ devsheet.hidden=true; };
 devsheet.onclick=e=>{ if(e.target===devsheet) devsheet.hidden=true; };
 $("#devinvite").onclick=()=>{ devsheet.hidden=true; openAdminInvite(); };
+
+/* ---- stats (admin only): counters, never the words that were said ---- */
+const statssheet=$("#statssheet");
+const fmtN=n=>n>=1e4?(n/1e3).toFixed(n>=1e5?0:1)+"K":String(n);
+const dur=sec=>sec>=172800?Math.round(sec/86400)+" days":sec>=7200?Math.round(sec/3600)+" hours":Math.max(1,Math.round(sec/60))+" min";
+function el(tag,cls,text){ const e=document.createElement(tag); if(cls) e.className=cls; if(text!==undefined) e.textContent=text; return e; }
+function kv(parent,label,value,flag){ const r=el("div","kv"); r.append(el("span","",label),el("b","",value)); if(flag) r.append(el("span","flag","⚠ "+flag)); parent.append(r); }
+function dayName(iso,long){ return new Date(iso+"T12:00:00").toLocaleDateString(undefined,long?{weekday:"short",day:"numeric",month:"short"}:{weekday:"narrow"}); }
+function drawChart(box,days){
+  const max=Math.max(1,...days.map(x=>x.messages)), top=days.findIndex(x=>x.messages===max&&max>0);
+  const chart=el("div","chart"); chart.setAttribute("role","group"); chart.setAttribute("aria-label","Messages per day, last 14 days");
+  const tip=el("div","tip"); tip.hidden=true; chart.append(el("div","ymax",String(max)));
+  const cols=el("div","cols"), labs=el("div","xlab");
+  const show=(c,x)=>{ tip.replaceChildren(el("b","",x.messages+(x.messages===1?" message":" messages")),el("span","",dayName(x.date,true))); tip.hidden=false; tip.style.left=(c.offsetLeft+c.offsetWidth/2)+"px"; };
+  days.forEach((x,i)=>{
+    const c=el("div","col"); c.tabIndex=0; c.setAttribute("aria-label",dayName(x.date,true)+": "+x.messages+" messages");
+    if(x.messages&&(i===top||i===days.length-1)) c.append(el("em","",String(x.messages)));       // label the busiest day and today, nothing else
+    const bar=el("i"); bar.style.height=Math.round(x.messages/max*80)+"px"; c.append(bar);
+    c.addEventListener("pointerenter",()=>show(c,x)); c.addEventListener("pointerdown",()=>show(c,x)); c.addEventListener("focus",()=>show(c,x));
+    c.addEventListener("pointerleave",()=>{ tip.hidden=true; }); c.addEventListener("blur",()=>{ tip.hidden=true; });
+    cols.append(c);
+    labs.append(el("span",i===days.length-1?"today":"",dayName(x.date)));
+  });
+  chart.append(tip,cols,labs); box.append(chart);
+  const det=el("details","more"); det.append(el("summary","","Table of these numbers"));
+  const tb=document.createElement("table"), head=tb.createTHead().insertRow();
+  for(const h of ["Day","Messages","Tokens"]) head.append(Object.assign(document.createElement("th"),{textContent:h}));
+  for(const x of days.slice().reverse()){ const r=tb.insertRow(); for(const v of [dayName(x.date,true),String(x.messages),fmtN(x.tokens)]) r.insertCell().textContent=v; }
+  det.append(tb); box.append(det);
+}
+function renderStats(box,d){
+  box.replaceChildren();
+  const t=d.totals, tiles=el("div","tiles");
+  for(const [v,l] of [[t.today,"messages today"],[t.week,"last 7 days"],[t.month,"last 30 days"]]){ const k=el("div","tile"); k.append(el("b","",fmtN(v)),el("span","",l)); tiles.append(k); }
+  box.append(tiles, el("p","note","Claude used about "+fmtN(t.tokens_week)+" tokens for the last 7 days of messages, not counting the cheap cached part ("+fmtN(t.cached_week)+")."));
+  box.append(el("h3","","Messages per day"));
+  drawChart(box,d.days);
+  box.append(el("h3","","Phones, last 7 days"));
+  const maxd=Math.max(1,...d.devices.map(x=>x.messages_7d));
+  for(const x of d.devices.slice().sort((a,b)=>b.messages_7d-a.messages_7d)){
+    const row=el("div","ph"), line=el("div","phtop");
+    line.append(el("b","",x.name)); if(x.admin) line.append(el("span","tag","admin")); line.append(el("span","phn",fmtN(x.messages_7d)+(x.messages_7d===1?" message":" messages")));
+    const bar=el("div","phbar"), fill=el("i"); fill.style.width=Math.round(x.messages_7d/maxd*100)+"%"; bar.append(fill);
+    row.append(line,bar,el("div","dm",(NATIVE[x.lang]||x.lang)+" · "+fmtN(x.messages_total)+" in total · "+fmtN(x.tokens_7d)+" tokens this week · "+(x.last_used?"last used "+ago(x.last_used):"never used")));
+    box.append(row);
+  }
+  if(t.removed_week) box.append(el("p","note",t.removed_week+" of this week's messages came from phones that have been removed since."));
+  const e=d.engine, eng=el("div"); box.append(el("h3","","Translator"),eng);
+  kv(eng,"Model",e.model); kv(eng,"Answers this week",fmtN(e.calls_week)); kv(eng,"Average answer time",e.calls_week?(e.avg_ms/1000).toFixed(1)+" s":"-");
+  kv(eng,"Slow answers (over 8 s)",String(e.slow_week)); kv(eng,"Errors this week",String(e.errors_week),e.errors_week?"look at the log":"");
+  kv(eng,"Engine restarts since start",String(e.restarts)); kv(eng,"Sessions open now",d.rooms.open+" ("+d.rooms.people+" people)");
+  const p=d.pi, pi=el("div"); box.append(el("h3","","The Pi"),pi);
+  if(p.mem_total_mb!==undefined) kv(pi,"Memory in use",(p.mem_total_mb-p.mem_available_mb)+" of "+p.mem_total_mb+" MB",p.mem_available_mb<120?"almost full":"");
+  if(p.cpu_temp_c!==undefined) kv(pi,"Temperature",p.cpu_temp_c+" °C",p.cpu_temp_c>=75?"hot":"");
+  if(p.load1!==undefined) kv(pi,"Load (1 minute)",String(p.load1));
+  if(p.disk_free_gb!==undefined) kv(pi,"Disk free",p.disk_free_gb+" of "+p.disk_total_gb+" GB",p.disk_free_gb<1?"almost full":"");
+  kv(pi,"PolyGo running for",dur(p.service_uptime_s)); if(p.pi_uptime_s!==undefined) kv(pi,"Pi running for",dur(p.pi_uptime_s));
+  box.append(el("p","note","Only counts are kept here, never the words that were said. They are saved every 5 minutes."));
+}
+async function loadStats(){
+  const box=$("#statsbody"); box.style.opacity=".55";                     // keep the frame while the numbers reload
+  const {r,d}=await api("GET","/api/admin/stats");
+  box.style.opacity="";
+  if(!r.ok){ box.replaceChildren(el("p","note",r.status===0?tt("offline_msg"):(d.detail||"Could not load the numbers."))); return; }
+  renderStats(box,d);
+}
+function openStats(){ statssheet.hidden=false; $("#statsbody").textContent="Loading…"; loadStats(); }
+$("#statsrefresh").onclick=loadStats;
+$("#statsclose").onclick=()=>{ statssheet.hidden=true; };
+statssheet.onclick=e=>{ if(e.target===statssheet) statssheet.hidden=true; };
 
 /* ---- shared conversations (rooms): start, join, live updates ---- */
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
@@ -1031,6 +1139,7 @@ $("#more").onclick=()=>{ sheet.hidden=false; };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
 $("#sinvite").onclick=()=>{ sheet.hidden=true; openAdminInvite(); };
 $("#sdevices").onclick=()=>{ sheet.hidden=true; openDevices(); };
+$("#sstats").onclick=()=>{ sheet.hidden=true; openStats(); };
 $("#sadmin").onclick=()=>{ sheet.hidden=true; openAdminInvite("admin"); };
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
 $("#fsm").onclick=()=>{ fs=Math.max(0.8,+(fs-0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };

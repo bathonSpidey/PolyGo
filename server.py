@@ -8,6 +8,7 @@ import segno
 import corrections
 import devices
 import rooms
+import stats
 import translator
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -88,11 +89,14 @@ class Engine:
         if self.s is None:
             self.s = translator.Session()
             self.restarts += 1
+        t0 = time.time()
         try:
             r = await asyncio.wait_for(asyncio.to_thread(fn, self.s), TIMEOUT)
         except Exception:
+            stats.error()
             self._kill()
             raise
+        stats.call(self.s.last_usage, int((time.time() - t0) * 1000))
         self.turns += 1
         if self.turns >= MAX_TURNS:
             self._kill()
@@ -145,10 +149,18 @@ engine = Engine()
 
 @asynccontextmanager
 async def lifespan(app):
+    stats.load()
     asyncio.create_task(engine.warm())
     sweeper = asyncio.create_task(rooms.sweep_forever())
+    keep_ids = lambda: [d["id"] for d in devices.listing()["devices"]]
+    flusher = asyncio.create_task(stats.flush_forever(keep_ids))
     yield
     sweeper.cancel()
+    flusher.cancel()
+    try:
+        stats.save(keep_ids())
+    except OSError:
+        pass
     engine._kill()
 
 
@@ -260,6 +272,16 @@ async def admin_devices(admin=Depends(require_admin)):
     return {**devices.listing(), "me": admin["id"]}
 
 
+@app.get("/api/admin/stats")
+async def admin_stats(admin=Depends(require_admin)):
+    """Counters only (see stats.py): never any message text."""
+    live = [r for r in rooms.ROOMS.values() if r.alive()]
+    return stats.snapshot(devices.listing()["devices"],
+                          {"model": translator.MODEL, "turns": engine.turns, "restarts": engine.restarts,
+                           "running": engine.s is not None},
+                          {"open": len(live), "people": sum(len(r.people) for r in live)})
+
+
 @app.delete("/api/admin/devices/{did}")
 async def admin_forget(did: str, admin=Depends(require_admin)):
     return {"removed": devices.forget(did, admin)}
@@ -271,7 +293,9 @@ async def api_auth():
 
 
 @app.post("/api/translate", dependencies=[Depends(require_auth)])
-async def api_translate(r: Req):
+async def api_translate(r: Req, request: Request):
+    did = (_device_from(request) or {}).get("id", "")
+    stats.who.set(did)
     text = r.text.strip()
     if r.a not in LANGS or r.b not in LANGS or r.a == r.b:
         raise HTTPException(400, "bad language pair")
@@ -303,6 +327,7 @@ async def api_translate(r: Req):
     if not (ok and to == "Assamese" and not r.script and r.speak_script and isinstance(n, str)
             and SCRIPT_CHARS.search(n) and len(n) <= 1200):
         n = None
+    stats.message(did, len(text))
     return {"t": res["t"], "n": n, "ok": ok, "from": frm if frm in (r.a, r.b) else None, "to": to,
             "ms": int((time.time() - t0) * 1000)}
 
@@ -413,7 +438,9 @@ async def room_events(rid: str, pid: str = "", since: int = 0, wait: float = 20.
 
 
 @app.post("/api/rooms/{rid}/messages", dependencies=[Depends(require_auth)])
-async def room_send(rid: str, m: RoomMsg):
+async def room_send(rid: str, m: RoomMsg, request: Request):
+    did = (_device_from(request) or {}).get("id", "")
+    stats.who.set(did)
     room = rooms.get(rid)
     p = room.person(m.pid)
     text = re.sub(r"\s+", " ", m.text).strip()
@@ -430,6 +457,7 @@ async def room_send(rid: str, m: RoomMsg):
         finally:
             room.pending -= 1
     ev = await room.post(p, text, tr, n, ok)
+    stats.message(did, len(text))
     return {"id": ev["id"], "ok": ok, "ms": int((time.time() - t0) * 1000), "languages": targets}
 
 
