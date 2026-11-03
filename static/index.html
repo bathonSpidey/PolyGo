@@ -172,6 +172,7 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
       <label class="invf">Change language to<select id="lb" aria-label="Change language to"></select></label>
     </div>
     <button id="sinvite" type="button">Invite someone (QR)</button>
+    <button id="sadmin" type="button" hidden>Invite another admin</button>
     <button id="sdevices" type="button" hidden>Devices</button>
     <button id="snew" type="button">New conversation</button>
     <details class="more"><summary>More settings</summary>
@@ -563,6 +564,7 @@ function paintDevice(){
   $("#forget").hidden=!!me;                       // a set-up phone is signed out by an admin, not by itself
   $("#sinvite").hidden=!!me&&!isAdmin();          // only admins can invite; a phone with the old passcode keeps the old invite for now
   $("#sdevices").hidden=!isAdmin();
+  $("#sadmin").hidden=!isAdmin();                 // only an admin can add another admin
   $("#rinvite").hidden=!!me;                      // inviting into a conversation: the admin panel does it for set-up phones
   if(isAdmin()) checkAdmins(); else $("#adminnag").hidden=true;
 }
@@ -1116,6 +1118,7 @@ $("#more").onclick=()=>{ sheet.hidden=false; };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
 $("#sinvite").onclick=()=>{ sheet.hidden=true; if(me) openAdminInvite(); else { invsheet.hidden=false; drawInvite(); } };   // set-up phones: the admin invite; older phones: the passcode invite
 $("#sdevices").onclick=()=>{ sheet.hidden=true; openDevices(); };
+$("#sadmin").onclick=()=>{ sheet.hidden=true; openAdminInvite("admin"); };
 sheet.onclick=e=>{ if(e.target===sheet) sheet.hidden=true; };
 $("#fsm").onclick=()=>{ fs=Math.max(0.8,+(fs-0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
 $("#fsp").onclick=()=>{ fs=Math.min(1.9,+(fs+0.15).toFixed(2)); put("fs",String(fs)); applyMode(); };
