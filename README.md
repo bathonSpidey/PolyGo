@@ -46,6 +46,9 @@ flowchart LR
 - **Shared conversations (rooms):** **Make a session** starts a room and shows its link and QR code. Each phone joins in its own language and every message arrives translated into each person's language, so different languages can mix in one conversation. A message goes to the translator once, into all needed languages in a single call. In a room a phone has **one mic** (its own language), the page text is in that language (English, German, Hindi, and Assamese in Latin letters, the last one a draft), other people's messages are spoken (queued, not cut off), and a language dropdown plus a 👥 people screen (share, size, leave, end for everyone) are always at hand.
   - *Joining:* the link says `#room=…` (optionally the person's language `l=` and name `n=`). A phone that was never set up sees "ask for a link" first (an admin invites it); the join screen then pre-selects the language from the link, else from the phone's first language setting (German, Hindi, Assamese are trusted, English is not and asks once with four big buttons), and its Join tap also unlocks speech on iPhones. Reloading the page resumes the conversation as the same person.
   - *Rules:* a link lasts 24 h; 2 to 10 phones (default 4, the creator can change it, ceiling `POLYGO_ROOM_MAX`); latecomers see nothing from before they joined; everything stays in memory only (never on disk, a restart ends all rooms); at most 8 messages per person per 30 s. Delivery is long-polling (`/api/rooms/{id}/events`), so a phone that drops out simply asks again from where it was; the screen is kept awake where the browser allows it.
+- **Light or dark:** the page follows the phone's own setting; ⋯ → **Appearance** lets a phone pin Light or Dark (remembered on that phone only).
+- **Home-screen icon:** a web app manifest (`display: browser`) and icons, so a phone can keep a PolyGo shortcut. It opens in the normal browser on purpose, so the device key (cookie) and speech recognition keep working; Chrome therefore says "This app cannot be installed" and offers **Create shortcut**, which is the right choice. iPhone: Safari → Share → Add to Home Screen. ⋯ → More settings → "Put PolyGo on the home screen" shows the steps.
+- **Login keep-alive:** see [Keeping the Claude login alive](#keeping-the-claude-login-alive).
 - Mic, play button, speaking speed, one-request-at-a-time queue, automatic restart after 40 turns or a hang.
 
 ## Setup
@@ -58,7 +61,7 @@ echo "pick-a-passcode" > passcode.txt && chmod 600 passcode.txt     # only used 
 POLYGO_MODEL=claude-sonnet-5-5 ./venv/bin/uvicorn server:app --host 127.0.0.1 --port 8765
 ```
 
-A systemd user unit is in `deploy/polygo-api.service`. Private, git-ignored files: `passcode.txt`, `devices.json`, `stats.json`, `glossary.txt` (start from `glossary.example.txt`), `corrections.jsonl`.
+A systemd user unit is in `deploy/polygo-api.service`. Private, git-ignored files: `passcode.txt`, `devices.json`, `stats.json`, `keepalive.json`, `glossary.txt` (start from `glossary.example.txt`), `corrections.jsonl`.
 
 ### Public HTTPS link (Tailscale Funnel)
 
@@ -74,6 +77,41 @@ tailscale funnel --bg 8765             # first run prints a link to enable Funne
 ```
 
 A brand-new name can take a while to show up in public DNS. Before travelling, disable key expiry for the device in the Tailscale admin page.
+
+## Keeping the Claude login alive
+
+The engine is the Claude Code CLI signed in with a subscription. Its token is renewed each time it is used (access token about 8 hours, renewal token about 8 days, rolling), stored in `~/.claude/.credentials.json` on the Pi. If PolyGo sits unused for about a week the renewal can lapse, and then every translation fails with the generic "Could not translate" message.
+
+**Keep-alive (`keepalive.py`, automatic).** If a whole day passes with no successful Claude call, the server makes one tiny Haiku call (about 550 tokens, a hundredth of a cent). It checks 60 seconds after start-up and every 30 minutes. A real translation counts as use, so on a normal day it never fires. The result is in ⋯ → **Stats** → Translator → **Claude login** ("working, last used 3 h ago", or "PROBLEM: …" plus a hint if it looks like a login problem). Settings (environment): `POLYGO_KEEPALIVE_HOURS` (24), `POLYGO_KEEPALIVE_CHECK_SECONDS` (1800), `POLYGO_KEEPALIVE_MODEL` (`claude-haiku-5-5`). State is a few numbers in `keepalive.json`. `python tests/keepalive_test.py` runs its 26 checks.
+
+### If the login has expired: sign in again from your phone
+
+You need the Pi online (at home Wi-Fi or on a phone hotspot, it joins Tailscale by itself) and, on the phone, the Tailscale app signed in to the same account plus any SSH app (Termius, Blink, JuiceSSH, ...). The public link only serves the web page, not SSH, so this is only reachable from your own tailnet.
+
+1. Turn Tailscale on, on the phone.
+2. In the SSH app, connect to host `polygo` (or its Tailscale address `100.76.2.93`), user `spidey`, with the Pi's password. (Password login is enabled on the Pi. Your PC's key `~/.ssh/polygo_zero` is on the PC only; you do not need to copy it to the phone. Optional upgrade: `sudo tailscale set --ssh` on the Pi turns on Tailscale SSH, which needs no password or key from a phone on the tailnet. It is off today.)
+3. Check what is wrong: `~/.npm-global/bin/claude auth status` (it shows `"loggedIn": true` when the login is fine)
+4. Sign in again: run `~/.npm-global/bin/claude`, type `/login` and pick the Claude account (subscription) sign-in if it asks. It prints a web address. Open it in the phone's browser, sign in to Claude, copy the code it shows and paste it into the SSH app. Then `/exit`.
+5. Make the server pick it up: `systemctl --user restart polygo-api`
+6. Check: ⋯ → Stats → Claude login should say "working", or send a test message.
+
+If the Pi cannot be reached at all: check the Pi has power and internet, and that its name shows up as online in the Tailscale app. Rehearse steps 1 to 3 once on your phone's hotspot before a trip.
+
+**Lost every admin phone?** On the Pi: `cd ~/polygo && ./venv/bin/python devices.py recovery` prints a one-time admin link (`<address>/#i=<token>`).
+
+**Long-lived token (not used).** `claude setup-token` can make a token that is said to last about a year (set as `CLAUDE_CODE_OAUTH_TOKEN`). We did not switch to it: open bug reports describe 401 errors with such tokens, including in long-running processes, and PolyGo is one long-running process. The self-renewing login plus the keep-alive is the safer setup. If you ever try it, test it with a real session first and keep the normal login as the fallback.
+
+### Deploying changes
+
+The Pi has no git. Copy changed files from the PC and restart:
+
+```bash
+scp -i ~/.ssh/polygo_zero server.py keepalive.py spidey@polygo.local:polygo/
+scp -i ~/.ssh/polygo_zero static/* spidey@polygo.local:polygo/static/
+ssh -i ~/.ssh/polygo_zero spidey@polygo.local 'systemctl --user restart polygo-api'
+```
+
+Tests run from the PC (the Pi has no `tests/` folder).
 
 ## Security
 
@@ -92,17 +130,16 @@ Honest limits: someone who steals an unlocked phone has that phone's access unti
 
 ## Roadmap
 
-- [x] Translation, tone, glossary, mic, voices, passcode, public HTTPS link, "Wrong?" corrections
-- [x] Parent-friendly, step 1 and 2: simple view with typing box, invite link and QR
-- [x] Shared conversations, step A and B: rooms on the server with joining, capacity, expiry, per-person languages and live delivery (40 automated checks)
-- [x] Shared conversations, screens: start, share link/QR, join (device-language guess, ask once on English phones), one mic per phone, spoken incoming messages, language switch, people/size/leave/end, page text in each language
-- [ ] Shared conversations, to check on real phones: the microphone and voices in a room, iPhone speech and screen-on behaviour, Assamese page texts (draft), limits tuning
-- [ ] Parent-friendly, later: clearer errors and keep-awake, **quick phrases** (verified, instant, optionally in a family voice), app labels in Assamese and German, home-screen icon
-- [ ] iPhone test over the public link (mic, speech, auto-play)
-- [ ] Android: check which voices the phone offers (the page shows the voice used)
-- [ ] **Wi-Fi setup hotspot** so the Pi can join new networks (flow below), protected by its own password
-- [ ] Optional: tailnet-only access instead of the public link; firewall
-- [ ] Parked: a Pi Zero 2W belt box (too little RAM for the Claude CLI), enclosure
+- [x] Translation, tone, glossary, mic, voices, public HTTPS link, "Wrong?" corrections
+- [x] Parent-friendly: one simple view, big named mic buttons, typing box, zoom, language dropdown, page texts in English, German, Hindi and Axomiya (Latin letters, draft)
+- [x] Shared conversations (sessions): rooms with joining, capacity, expiry, per-person languages and live delivery
+- [x] Devices and invites: a key per phone, single-use invite links and QR, family / friend / admin, device list with remove, recovery command; the shared passcode is retired
+- [x] Admin stats panel (counters only), Claude login keep-alive, light / dark / automatic appearance, home-screen icon
+- [ ] To check on real phones: the first real session with the family, the microphone and voices in a room, iPhone speech and screen-on behaviour, Android voices, the Axomiya texts (draft) by a speaker, the German by a speaker, the Hindi
+- [ ] **Wi-Fi setup hotspot**: installed (comitup, `deploy/set-hotspot.sh`); the outdoor test is still to do
+- [ ] Before travelling: turn off the Tailscale key expiry for the Pi; rehearse the phone login above; back up `devices.json`, `glossary.txt`, `corrections.jsonl`, `stats.json` (they exist only on the Pi)
+- [ ] Ideas, only if testing shows a need: clearer errors (such as the usage limit), **quick phrases**, an in-app-browser hint, per-device message limits, tailnet-only access instead of the public link
+- [ ] Parked: commercial use (would need the Claude API or commercial terms, not a subscription), a Pi Zero 2W belt box (too little RAM for the Claude CLI)
 
 ### Planned: Wi-Fi setup hotspot (comitup)
 
