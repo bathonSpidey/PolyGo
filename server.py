@@ -531,3 +531,19 @@ async def api_health(request: Request):
 @app.get("/")
 async def index():
     return FileResponse(os.path.join(HERE, "static", "index.html"))
+
+
+# The home-screen icon and its manifest. Public on purpose (like the page itself): a phone fetches them without any key.
+PUBLIC_FILES = {"/manifest.webmanifest": "application/manifest+json", "/icon-180.png": "image/png",
+                "/icon-192.png": "image/png", "/icon-512.png": "image/png"}
+
+
+def _public_file(name: str, mime: str):
+    async def handler():
+        return FileResponse(os.path.join(HERE, "static", name), media_type=mime,
+                            headers={"Cache-Control": "public, max-age=86400"})
+    return handler
+
+
+for _path, _mime in PUBLIC_FILES.items():
+    app.add_api_route(_path, _public_file(_path.lstrip("/"), _mime), methods=["GET"], include_in_schema=False)
