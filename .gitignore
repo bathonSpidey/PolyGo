@@ -13,3 +13,5 @@ devices.json
 .devices-*
 stats.json
 .stats-*
+keepalive.json
+.keepalive-*

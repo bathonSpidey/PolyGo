@@ -868,6 +868,9 @@ function renderStats(box,d){
   const e=d.engine, eng=el("div"); box.append(el("h3","","Translator"),eng);
   kv(eng,"Model",e.model); kv(eng,"Answers this week",fmtN(e.calls_week)); kv(eng,"Average answer time",e.calls_week?(e.avg_ms/1000).toFixed(1)+" s":"-");
   kv(eng,"Slow answers (over 8 s)",String(e.slow_week)); kv(eng,"Errors this week",String(e.errors_week),e.errors_week?"look at the log":"");
+  const lg=e.login||{};
+  if(lg.error) kv(eng,"Claude login","PROBLEM: "+lg.error,lg.login_problem?"log in again over SSH (claude, then /login)":"");
+  else kv(eng,"Claude login",lg.last_ok?"working, last used "+ago(lg.last_ok):"not checked yet");
   kv(eng,"Engine restarts since start",String(e.restarts)); kv(eng,"Sessions open now",d.rooms.open+" ("+d.rooms.people+" people)");
   const p=d.pi, pi=el("div"); box.append(el("h3","","The Pi"),pi);
   if(p.mem_total_mb!==undefined) kv(pi,"Memory in use",(p.mem_total_mb-p.mem_available_mb)+" of "+p.mem_total_mb+" MB",p.mem_available_mb<120?"almost full":"");

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 import segno
 import corrections
 import devices
+import keepalive
 import rooms
 import stats
 import translator
@@ -97,6 +98,7 @@ class Engine:
             self._kill()
             raise
         stats.call(self.s.last_usage, int((time.time() - t0) * 1000))
+        keepalive.used_ok()
         self.turns += 1
         if self.turns >= MAX_TURNS:
             self._kill()
@@ -150,15 +152,19 @@ engine = Engine()
 @asynccontextmanager
 async def lifespan(app):
     stats.load()
+    keepalive.load()
     asyncio.create_task(engine.warm())
     sweeper = asyncio.create_task(rooms.sweep_forever())
     keep_ids = lambda: [d["id"] for d in devices.listing()["devices"]]
     flusher = asyncio.create_task(stats.flush_forever(keep_ids))
+    alive = asyncio.create_task(keepalive.run_forever())
     yield
     sweeper.cancel()
     flusher.cancel()
+    alive.cancel()
     try:
         stats.save(keep_ids())
+        keepalive.save()
     except OSError:
         pass
     engine._kill()
@@ -278,7 +284,7 @@ async def admin_stats(admin=Depends(require_admin)):
     live = [r for r in rooms.ROOMS.values() if r.alive()]
     return stats.snapshot(devices.listing()["devices"],
                           {"model": translator.MODEL, "turns": engine.turns, "restarts": engine.restarts,
-                           "running": engine.s is not None},
+                           "running": engine.s is not None, "login": keepalive.snapshot()},
                           {"open": len(live), "people": sum(len(r.people) for r in live)})
 
 
