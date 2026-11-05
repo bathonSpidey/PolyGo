@@ -61,6 +61,8 @@ echo "pick-a-passcode" > passcode.txt && chmod 600 passcode.txt     # only used 
 POLYGO_MODEL=claude-sonnet-5-5 ./venv/bin/uvicorn server:app --host 127.0.0.1 --port 8765
 ```
 
+**Speed.** `POLYGO_EFFORT` (`low`, `medium`, `high`, `xhigh`, `max`; unset = the CLI's default) sets how long the model thinks before it answers. On the Pi, `low` roughly halved the average wait (about 3.6 s against 7.8 s for a sentence, and the slowest fell from about 20 s to 7 s). Quality is a judgement call, especially for Assamese, so compare the same few sentences both ways and delete the `POLYGO_EFFORT` line in the service to go back. `python tests/effort_test.py` checks the setting is read safely (an unknown value is ignored).
+
 A systemd user unit is in `deploy/polygo-api.service`. Private, git-ignored files: `passcode.txt`, `devices.json`, `stats.json`, `keepalive.json`, `glossary.txt` (start from `glossary.example.txt`), `corrections.jsonl`.
 
 ### Public HTTPS link (Tailscale Funnel)

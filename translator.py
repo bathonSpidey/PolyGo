@@ -7,6 +7,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Where the Claude CLI is: an explicit setting, else whatever is on the PATH, else the usual npm location.
 CLAUDE = os.environ.get("POLYGO_CLAUDE") or shutil.which("claude") or os.path.expanduser("~/.npm-global/bin/claude")
 MODEL = os.environ.get("POLYGO_MODEL", "claude-sonnet-5-5")
+# How hard the model "thinks" before answering: low is much faster, high is the CLI's default. Unset or
+# unknown = leave the CLI alone (a typo must never stop the translator from starting).
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+EFFORT = os.environ.get("POLYGO_EFFORT", "").strip().lower()
 
 
 def build_system_prompt():
@@ -22,8 +26,11 @@ def build_system_prompt():
 
 def _flags():
     # No tools, no MCP servers, no slash commands: the session can only produce text.
-    return ["--model", MODEL, "--tools", "", "--system-prompt", build_system_prompt(),
-            "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
+    flags = ["--model", MODEL, "--tools", "", "--system-prompt", build_system_prompt(),
+             "--disable-slash-commands", "--strict-mcp-config", "--no-session-persistence"]
+    if EFFORT in EFFORTS:
+        flags += ["--effort", EFFORT]
+    return flags
 
 
 def parse(raw):
