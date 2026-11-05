@@ -56,6 +56,11 @@ textarea{width:100%;min-height:64px;max-height:30vh;resize:none;padding:10px 12p
 #status{font-size:14px;color:var(--warn);background:var(--warnbg);border-radius:8px;padding:6px 10px;margin-bottom:8px}
 #status:empty{display:none}
 .actions{display:flex;gap:8px;margin-top:8px}
+.micbox{position:relative;flex:1;display:flex;min-width:0}
+.micbox .mic{flex:1;min-width:0}
+/* the little gear in the corner of each big button: a big tap area (52 px) with a small picture, hidden while the button is busy */
+.gear{position:absolute;top:2px;right:2px;width:52px;height:52px;padding:0;border:0;background:transparent;border-radius:50%;font-size:24px;line-height:52px;color:var(--mute)}
+.mic.on+.gear,.mic.wait+.gear{visibility:hidden}
 .mic{flex:1;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px 6px;font-weight:600;font-size:16px}
 .mic.on{background:#b91c1c;color:#fff;border-color:#b91c1c;animation:pulse 1.3s ease-out infinite}
 .mic.wait{background:var(--warnbg);color:var(--warn);border-color:var(--warn)}
@@ -123,8 +128,8 @@ body.simple #state.idle{display:none}
 body.simple #inp{order:2;flex:1 1 0;min-width:0;min-height:3.2em;max-height:30vh;font-size:1em}
 body.simple #go{order:3;flex:0 0 auto;width:auto;margin:0;min-width:3.4em;padding:0 16px;font-size:1.4em}
 body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
-#sheet,#adminsheet,#devsheet,#statssheet,#joinsheet,#roomsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
-#sheet[hidden],#adminsheet[hidden],#devsheet[hidden],#statssheet[hidden],#joinsheet[hidden],#roomsheet[hidden]{display:none}
+#sheet,#adminsheet,#devsheet,#statssheet,#joinsheet,#roomsheet,#langsheet{position:fixed;inset:0;z-index:9;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#sheet[hidden],#adminsheet[hidden],#devsheet[hidden],#statssheet[hidden],#joinsheet[hidden],#roomsheet[hidden],#langsheet[hidden]{display:none}
 .sheetcard{width:100%;max-width:480px;background:var(--card);border-radius:22px 22px 0 0;padding:20px 20px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;font-size:20px;max-height:92vh;overflow-y:auto}
 .sheetcard h2{margin:0 0 4px;font-size:1.1em}
 .sheetcard button{padding:16px;border-radius:14px;border:1px solid var(--line);background:var(--bg);font-size:1em}
@@ -140,7 +145,7 @@ body.simple .actions{order:4;flex:1 1 100%;margin-top:2px}
 #roomlang{display:inline-block}
 body.room #roombtn{display:inline-block}
 body:not(.room) #roomstart{display:inline-block;font-size:.8em;padding:9px 13px;background:var(--btn);color:#fff;border:0;font-weight:600}
-body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display:none!important}
+body.room #roomstart,body.room #boxb,body.room #pairrows,body.room #snew{display:none!important}
 #roomlang{font-size:.85em;max-width:7.5em}
 #roombtn{font-size:1.05em;padding:8px 12px}
 .who{font-size:.8em;font-weight:700;color:var(--mute);margin-bottom:2px}
@@ -318,6 +323,13 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
     <button id="jcancel" type="button"></button>
   </div>
 </div>
+<div id="langsheet" hidden>
+  <div class="sheetcard">
+    <h2 id="lgtitle"></h2>
+    <div class="langgrid" id="lggrid"></div>
+    <button id="lgclose" type="button" data-t="back"></button>
+  </div>
+</div>
 <div id="roomsheet" hidden>
   <div class="sheetcard">
     <h2 id="rtitle"></h2>
@@ -347,7 +359,10 @@ body.room #roomstart,body.room #micb,body.room #pairrows,body.room #snew{display
   <div id="status" role="status"></div>
   <textarea id="inp" placeholder="Type here, or tap a microphone…" enterkeyhint="send"></textarea>
   <div id="state" role="status" aria-live="polite"></div>
-  <div class="actions"><button class="mic" id="mica"></button><button class="mic" id="micb"></button></div>
+  <div class="actions">
+    <div class="micbox" id="boxa"><button class="mic" id="mica"></button><button class="gear" id="gara" type="button" data-ta="gear_aria" aria-label="Change language">⚙</button></div>
+    <div class="micbox" id="boxb"><button class="mic" id="micb"></button><button class="gear" id="garb" type="button" data-ta="gear_aria" aria-label="Change language">⚙</button></div>
+  </div>
   <button id="go">Translate</button>
 </footer>
 <script>
@@ -469,28 +484,28 @@ const UI={
     people:"People",leave:"Leave",end:"End for everyone",invite_more:"Invite more people",me:"me",untranslated:"Not translated for you",
     joined:"{n} joined",left:"{n} left",ended:"The conversation has ended.",full:"This conversation is full.",
     gone:"This link has expired or the conversation has ended.",notsure:"Not sure — showing the meaning in English",notsent:"Could not send. Please try again.",offline:"No connection. Trying again…",
-    session:"Make a session",zoom_out:"Zoom out: smaller text",zoom_in:"Zoom in: larger text",menu:"Menu",new_conv:"New conversation",more:"More settings",tone_label:"How people are addressed",tone_formal:"Formal (apuni / Sie)",tone_informal:"Informal (tumi / du)",tone_auto:"Match the speaker",script_label:"Assamese is shown as (tap to switch)",scr_script:"অ Assamese script",scr_latin:"Aa Latin letters",scr_tip:"How Assamese replies are written. Tap to switch.",speed:"Speaking speed",corrections:"Saved corrections",close:"Close",lang_aria:"My language",idle2:"Tap a button and speak",hint_main:"Type, or tap a button and speak",no_sr:"This browser cannot do speech recognition. Use Chrome on Android or on a computer.",mic_fail:"Could not start the microphone: ",mic_blocked:"Microphone blocked. Allow it for this site in the browser settings.",mic_nospeech:"Did not hear anything. Tap the microphone and speak.",mic_none:"No microphone found.",mic_net:"The speech service could not be reached (it needs the internet).",mic_other:"Microphone problem: ",wrong:"Wrong?",play:"Play translation",translate:"Translate",cant:"Could not translate. Please try again.",nolink:"This phone is not set up yet. Ask the person who runs PolyGo for a link or a QR code, and open it on this phone.",retry:"Try again",offline_msg:"Cannot reach PolyGo. Check the connection and try again.",link_used:"This link was already used, or it is not valid. Ask for a new one.",link_expired:"This link has expired. Ask for a new one.",access_ended:"Access for this phone has ended. Ask for a new link.",already:"This phone is already set up as {n}. Open that link on the other phone.",welcome:"Welcome, {n}. This phone is ready.",new_confirm:"Start a new conversation?",new_done:"New conversation.",fix_q:"What should it say?",fix_why:"Why? (optional)",fix_save:"Save correction",fix_cancel:"Cancel",fix_change:"Please change the translation to what it should say.",fix_saving:"Saving…",fix_thanks:"Thanks. PolyGo will use this from now on ({n} saved).",fix_fail:"Could not save: ",loading:"Loading…",no_fixes:"No corrections yet.",fix_del:"Delete this correction",fix_load_fail:"Could not load: ",heard_as:"{l} heard as",
+    session:"Make a session",zoom_out:"Zoom out: smaller text",zoom_in:"Zoom in: larger text",menu:"Menu",new_conv:"New conversation",more:"More settings",tone_label:"How people are addressed",tone_formal:"Formal (apuni / Sie)",tone_informal:"Informal (tumi / du)",tone_auto:"Match the speaker",script_label:"Assamese is shown as (tap to switch)",scr_script:"অ Assamese script",scr_latin:"Aa Latin letters",scr_tip:"How Assamese replies are written. Tap to switch.",speed:"Speaking speed",corrections:"Saved corrections",close:"Close",lang_aria:"Page language",gear_aria:"Change the language of this button",btn_lang:"Language of this button",idle2:"Tap a button and speak",hint_main:"Type, or tap a button and speak",no_sr:"This browser cannot do speech recognition. Use Chrome on Android or on a computer.",mic_fail:"Could not start the microphone: ",mic_blocked:"Microphone blocked. Allow it for this site in the browser settings.",mic_nospeech:"Did not hear anything. Tap the microphone and speak.",mic_none:"No microphone found.",mic_net:"The speech service could not be reached (it needs the internet).",mic_other:"Microphone problem: ",wrong:"Wrong?",play:"Play translation",translate:"Translate",cant:"Could not translate. Please try again.",nolink:"This phone is not set up yet. Ask the person who runs PolyGo for a link or a QR code, and open it on this phone.",retry:"Try again",offline_msg:"Cannot reach PolyGo. Check the connection and try again.",link_used:"This link was already used, or it is not valid. Ask for a new one.",link_expired:"This link has expired. Ask for a new one.",access_ended:"Access for this phone has ended. Ask for a new link.",already:"This phone is already set up as {n}. Open that link on the other phone.",welcome:"Welcome, {n}. This phone is ready.",new_confirm:"Start a new conversation?",new_done:"New conversation.",fix_q:"What should it say?",fix_why:"Why? (optional)",fix_save:"Save correction",fix_cancel:"Cancel",fix_change:"Please change the translation to what it should say.",fix_saving:"Saving…",fix_thanks:"Thanks. PolyGo will use this from now on ({n} saved).",fix_fail:"Could not save: ",loading:"Loading…",no_fixes:"No corrections yet.",fix_del:"Delete this correction",fix_load_fail:"Could not load: ",heard_as:"{l} heard as",
     size_label:"Most phones in it",copy_link:"Copy link",share:"Share…",link_copied:"Link copied.",copy_fail:"Could not copy. Send a screenshot of the code instead.",qr_fail:"Could not make the code: ",share_text:"Join our conversation:",share_note:"Send this link or code to people whose phones are already set up for PolyGo.",join_as:"You join as {n} ({l})",start_fail:"Could not start. Please try again.",theme_label:"Appearance",theme_auto:"Automatic (like the phone)",theme_light:"Light",theme_dark:"Dark",hs_btn:"Put PolyGo on the home screen",hs_ios:"In Safari: tap the Share button, then “Add to Home Screen”.",hs_android:"In Chrome: tap the ⋮ menu, then “Add to Home screen”.",hs_other:"Open this page in Safari (iPhone) or Chrome (Android), then add it to the home screen from the browser menu.",starting:"Getting ready…"},
   German:{join_title:"Dem Gespräch beitreten",name_label:"Name",name_ph:"Name (optional)",lang_label:"Ich spreche",join:"Beitreten",joining:"Trete bei…",back:"Zurück",
     idle:"Mikrofon antippen und sprechen",listening:"Ich höre zu…",thinking:"Übersetze…",speaking:"Spricht…",hint:"Tippen oder Mikrofon antippen und sprechen",
     people:"Personen",leave:"Verlassen",end:"Für alle beenden",invite_more:"Weitere Personen einladen",me:"ich",untranslated:"Für Sie nicht übersetzt",
     joined:"{n} ist beigetreten",left:"{n} hat das Gespräch verlassen",ended:"Das Gespräch wurde beendet.",full:"Dieses Gespräch ist voll.",
     gone:"Dieser Link ist abgelaufen oder das Gespräch wurde beendet.",notsure:"Nicht sicher – Bedeutung auf Englisch",notsent:"Senden fehlgeschlagen. Bitte noch einmal versuchen.",offline:"Keine Verbindung. Neuer Versuch…",
-    session:"Gespräch starten",zoom_out:"Verkleinern: kleinere Schrift",zoom_in:"Vergrößern: größere Schrift",menu:"Menü",new_conv:"Neues Gespräch",more:"Weitere Einstellungen",tone_label:"Anrede",tone_formal:"Förmlich (apuni / Sie)",tone_informal:"Persönlich (tumi / du)",tone_auto:"Wie der Sprecher",script_label:"Assamesisch wird angezeigt als (zum Wechseln tippen)",scr_script:"অ Assamesische Schrift",scr_latin:"Aa Lateinische Buchstaben",scr_tip:"So werden assamesische Antworten geschrieben. Zum Wechseln tippen.",speed:"Sprechgeschwindigkeit",corrections:"Gespeicherte Korrekturen",close:"Schließen",lang_aria:"Meine Sprache",idle2:"Taste antippen und sprechen",hint_main:"Tippen oder sprechen",no_sr:"Dieser Browser kann keine Spracherkennung. Bitte Chrome auf Android oder am Computer verwenden.",mic_fail:"Mikrofon konnte nicht gestartet werden: ",mic_blocked:"Mikrofon gesperrt. Bitte in den Browser-Einstellungen für diese Seite erlauben.",mic_nospeech:"Nichts gehört. Mikrofon antippen und sprechen.",mic_none:"Kein Mikrofon gefunden.",mic_net:"Der Sprachdienst ist nicht erreichbar (Internet nötig).",mic_other:"Mikrofon-Problem: ",wrong:"Falsch?",play:"Übersetzung abspielen",translate:"Übersetzen",cant:"Konnte nicht übersetzt werden. Bitte noch einmal versuchen.",nolink:"Dieses Telefon ist noch nicht eingerichtet. Bitten Sie die Person, die PolyGo betreut, um einen Link oder QR-Code und öffnen Sie ihn auf diesem Telefon.",retry:"Noch einmal versuchen",offline_msg:"PolyGo ist nicht erreichbar. Bitte Verbindung prüfen und noch einmal versuchen.",link_used:"Dieser Link wurde schon benutzt oder ist ungültig. Bitte um einen neuen.",link_expired:"Dieser Link ist abgelaufen. Bitte um einen neuen.",access_ended:"Der Zugang für dieses Telefon ist beendet. Bitte um einen neuen Link.",already:"Dieses Telefon ist schon als {n} eingerichtet. Öffnen Sie den Link auf dem anderen Telefon.",welcome:"Willkommen, {n}. Dieses Telefon ist bereit.",new_confirm:"Neues Gespräch beginnen?",new_done:"Neues Gespräch.",fix_q:"Was sollte dort stehen?",fix_why:"Warum? (optional)",fix_save:"Korrektur speichern",fix_cancel:"Abbrechen",fix_change:"Bitte ändern Sie die Übersetzung so, wie sie lauten sollte.",fix_saving:"Speichere…",fix_thanks:"Danke. PolyGo verwendet das ab jetzt ({n} gespeichert).",fix_fail:"Speichern fehlgeschlagen: ",loading:"Lädt…",no_fixes:"Noch keine Korrekturen.",fix_del:"Diese Korrektur löschen",fix_load_fail:"Laden fehlgeschlagen: ",heard_as:"{l} erkannt als",
+    session:"Gespräch starten",zoom_out:"Verkleinern: kleinere Schrift",zoom_in:"Vergrößern: größere Schrift",menu:"Menü",new_conv:"Neues Gespräch",more:"Weitere Einstellungen",tone_label:"Anrede",tone_formal:"Förmlich (apuni / Sie)",tone_informal:"Persönlich (tumi / du)",tone_auto:"Wie der Sprecher",script_label:"Assamesisch wird angezeigt als (zum Wechseln tippen)",scr_script:"অ Assamesische Schrift",scr_latin:"Aa Lateinische Buchstaben",scr_tip:"So werden assamesische Antworten geschrieben. Zum Wechseln tippen.",speed:"Sprechgeschwindigkeit",corrections:"Gespeicherte Korrekturen",close:"Schließen",lang_aria:"Sprache der Seite",gear_aria:"Sprache dieses Knopfes ändern",btn_lang:"Sprache dieses Knopfes",idle2:"Taste antippen und sprechen",hint_main:"Tippen oder sprechen",no_sr:"Dieser Browser kann keine Spracherkennung. Bitte Chrome auf Android oder am Computer verwenden.",mic_fail:"Mikrofon konnte nicht gestartet werden: ",mic_blocked:"Mikrofon gesperrt. Bitte in den Browser-Einstellungen für diese Seite erlauben.",mic_nospeech:"Nichts gehört. Mikrofon antippen und sprechen.",mic_none:"Kein Mikrofon gefunden.",mic_net:"Der Sprachdienst ist nicht erreichbar (Internet nötig).",mic_other:"Mikrofon-Problem: ",wrong:"Falsch?",play:"Übersetzung abspielen",translate:"Übersetzen",cant:"Konnte nicht übersetzt werden. Bitte noch einmal versuchen.",nolink:"Dieses Telefon ist noch nicht eingerichtet. Bitten Sie die Person, die PolyGo betreut, um einen Link oder QR-Code und öffnen Sie ihn auf diesem Telefon.",retry:"Noch einmal versuchen",offline_msg:"PolyGo ist nicht erreichbar. Bitte Verbindung prüfen und noch einmal versuchen.",link_used:"Dieser Link wurde schon benutzt oder ist ungültig. Bitte um einen neuen.",link_expired:"Dieser Link ist abgelaufen. Bitte um einen neuen.",access_ended:"Der Zugang für dieses Telefon ist beendet. Bitte um einen neuen Link.",already:"Dieses Telefon ist schon als {n} eingerichtet. Öffnen Sie den Link auf dem anderen Telefon.",welcome:"Willkommen, {n}. Dieses Telefon ist bereit.",new_confirm:"Neues Gespräch beginnen?",new_done:"Neues Gespräch.",fix_q:"Was sollte dort stehen?",fix_why:"Warum? (optional)",fix_save:"Korrektur speichern",fix_cancel:"Abbrechen",fix_change:"Bitte ändern Sie die Übersetzung so, wie sie lauten sollte.",fix_saving:"Speichere…",fix_thanks:"Danke. PolyGo verwendet das ab jetzt ({n} gespeichert).",fix_fail:"Speichern fehlgeschlagen: ",loading:"Lädt…",no_fixes:"Noch keine Korrekturen.",fix_del:"Diese Korrektur löschen",fix_load_fail:"Laden fehlgeschlagen: ",heard_as:"{l} erkannt als",
     size_label:"Höchstzahl der Telefone",copy_link:"Link kopieren",share:"Teilen…",link_copied:"Link kopiert.",copy_fail:"Kopieren fehlgeschlagen. Schicken Sie stattdessen einen Screenshot des Codes.",qr_fail:"Code konnte nicht erstellt werden: ",share_text:"Machen Sie bei unserem Gespräch mit:",share_note:"Schicken Sie diesen Link oder Code an Personen, deren Telefon schon für PolyGo eingerichtet ist.",join_as:"Sie treten bei als {n} ({l})",start_fail:"Start fehlgeschlagen. Bitte noch einmal versuchen.",theme_label:"Darstellung",theme_auto:"Automatisch (wie das Telefon)",theme_light:"Hell",theme_dark:"Dunkel",hs_btn:"PolyGo auf den Startbildschirm legen",hs_ios:"In Safari: auf „Teilen“ tippen, dann auf „Zum Home-Bildschirm“.",hs_android:"In Chrome: auf das Menü ⋮ tippen, dann auf „Zum Startbildschirm hinzufügen“.",hs_other:"Diese Seite in Safari (iPhone) oder Chrome (Android) öffnen und dann im Browser-Menü zum Startbildschirm hinzufügen.",starting:"Einen Moment…"},
   Hindi:{join_title:"बातचीत में शामिल हों",name_label:"आपका नाम",name_ph:"नाम (वैकल्पिक)",lang_label:"मेरी भाषा",join:"शामिल हों",joining:"शामिल हो रहे हैं…",back:"वापस",
     idle:"माइक्रोफ़ोन दबाएँ और बोलें",listening:"सुन रहे हैं…",thinking:"अनुवाद हो रहा है…",speaking:"बोल रहे हैं…",hint:"लिखें, या माइक्रोफ़ोन दबाकर बोलें",
     people:"लोग",leave:"छोड़ें",end:"सबके लिए समाप्त करें",invite_more:"और लोगों को बुलाएँ",me:"मैं",untranslated:"आपके लिए अनुवाद नहीं हुआ",
     joined:"{n} शामिल हुए",left:"{n} ने छोड़ा",ended:"बातचीत समाप्त हो गई।",full:"यह बातचीत भरी हुई है।",
     gone:"यह लिंक समाप्त हो गया है या बातचीत खत्म हो चुकी है।",notsure:"पक्का नहीं — अंग्रेज़ी में मतलब दिखा रहे हैं",notsent:"भेज नहीं सके। कृपया फिर कोशिश करें।",offline:"कनेक्शन नहीं है। फिर कोशिश कर रहे हैं…",
-    session:"बातचीत शुरू करें",zoom_out:"छोटा करें: छोटे अक्षर",zoom_in:"बड़ा करें: बड़े अक्षर",menu:"मेन्यू",new_conv:"नई बातचीत",more:"और सेटिंग्स",tone_label:"संबोधन कैसे हो",tone_formal:"औपचारिक (आप)",tone_informal:"अनौपचारिक (तुम)",tone_auto:"बोलने वाले जैसा",script_label:"असमिया इस तरह दिखे (बदलने के लिए दबाएँ)",scr_script:"অ असमिया लिपि",scr_latin:"Aa रोमन अक्षर",scr_tip:"असमिया जवाब कैसे लिखे जाएँ। बदलने के लिए दबाएँ।",speed:"बोलने की गति",corrections:"सहेजे गए सुधार",close:"बंद करें",lang_aria:"मेरी भाषा",idle2:"बटन दबाएँ और बोलें",hint_main:"लिखें, या बटन दबाकर बोलें",no_sr:"यह ब्राउज़र आवाज़ पहचान नहीं कर सकता। Android या कंप्यूटर पर Chrome इस्तेमाल करें।",mic_fail:"माइक्रोफ़ोन शुरू नहीं हो सका: ",mic_blocked:"माइक्रोफ़ोन बंद है। ब्राउज़र की सेटिंग में इस साइट के लिए इसे चालू करें।",mic_nospeech:"कुछ सुनाई नहीं दिया। माइक्रोफ़ोन दबाएँ और बोलें।",mic_none:"माइक्रोफ़ोन नहीं मिला।",mic_net:"आवाज़ सेवा तक नहीं पहुँच सके (इंटरनेट चाहिए)।",mic_other:"माइक्रोफ़ोन की समस्या: ",wrong:"गलत?",play:"अनुवाद सुनें",translate:"अनुवाद करें",cant:"अनुवाद नहीं हो सका। कृपया फिर कोशिश करें।",nolink:"यह फ़ोन अभी सेट नहीं है। PolyGo चलाने वाले से लिंक या QR कोड माँगें और इसी फ़ोन पर खोलें।",retry:"फिर कोशिश करें",offline_msg:"PolyGo तक नहीं पहुँच सके। कनेक्शन जाँचें और फिर कोशिश करें।",link_used:"यह लिंक पहले ही इस्तेमाल हो चुका है या सही नहीं है। नया लिंक माँगें।",link_expired:"यह लिंक समाप्त हो गया है। नया लिंक माँगें।",access_ended:"इस फ़ोन की पहुँच समाप्त हो गई है। नया लिंक माँगें।",already:"यह फ़ोन पहले से {n} के रूप में सेट है। वह लिंक दूसरे फ़ोन पर खोलें।",welcome:"स्वागत है, {n}। यह फ़ोन तैयार है।",new_confirm:"नई बातचीत शुरू करें?",new_done:"नई बातचीत।",fix_q:"इसमें क्या होना चाहिए?",fix_why:"क्यों? (वैकल्पिक)",fix_save:"सुधार सहेजें",fix_cancel:"रद्द करें",fix_change:"कृपया अनुवाद को वैसा बदलें जैसा होना चाहिए।",fix_saving:"सहेज रहे हैं…",fix_thanks:"धन्यवाद। PolyGo अब इसे इस्तेमाल करेगा ({n} सहेजे गए)।",fix_fail:"सहेज नहीं सके: ",loading:"लोड हो रहा है…",no_fixes:"अभी कोई सुधार नहीं।",fix_del:"यह सुधार हटाएँ",fix_load_fail:"लोड नहीं हो सका: ",heard_as:"{l} इस रूप में सुनी गई",
+    session:"बातचीत शुरू करें",zoom_out:"छोटा करें: छोटे अक्षर",zoom_in:"बड़ा करें: बड़े अक्षर",menu:"मेन्यू",new_conv:"नई बातचीत",more:"और सेटिंग्स",tone_label:"संबोधन कैसे हो",tone_formal:"औपचारिक (आप)",tone_informal:"अनौपचारिक (तुम)",tone_auto:"बोलने वाले जैसा",script_label:"असमिया इस तरह दिखे (बदलने के लिए दबाएँ)",scr_script:"অ असमिया लिपि",scr_latin:"Aa रोमन अक्षर",scr_tip:"असमिया जवाब कैसे लिखे जाएँ। बदलने के लिए दबाएँ।",speed:"बोलने की गति",corrections:"सहेजे गए सुधार",close:"बंद करें",lang_aria:"पेज की भाषा",gear_aria:"इस बटन की भाषा बदलें",btn_lang:"इस बटन की भाषा",idle2:"बटन दबाएँ और बोलें",hint_main:"लिखें, या बटन दबाकर बोलें",no_sr:"यह ब्राउज़र आवाज़ पहचान नहीं कर सकता। Android या कंप्यूटर पर Chrome इस्तेमाल करें।",mic_fail:"माइक्रोफ़ोन शुरू नहीं हो सका: ",mic_blocked:"माइक्रोफ़ोन बंद है। ब्राउज़र की सेटिंग में इस साइट के लिए इसे चालू करें।",mic_nospeech:"कुछ सुनाई नहीं दिया। माइक्रोफ़ोन दबाएँ और बोलें।",mic_none:"माइक्रोफ़ोन नहीं मिला।",mic_net:"आवाज़ सेवा तक नहीं पहुँच सके (इंटरनेट चाहिए)।",mic_other:"माइक्रोफ़ोन की समस्या: ",wrong:"गलत?",play:"अनुवाद सुनें",translate:"अनुवाद करें",cant:"अनुवाद नहीं हो सका। कृपया फिर कोशिश करें।",nolink:"यह फ़ोन अभी सेट नहीं है। PolyGo चलाने वाले से लिंक या QR कोड माँगें और इसी फ़ोन पर खोलें।",retry:"फिर कोशिश करें",offline_msg:"PolyGo तक नहीं पहुँच सके। कनेक्शन जाँचें और फिर कोशिश करें।",link_used:"यह लिंक पहले ही इस्तेमाल हो चुका है या सही नहीं है। नया लिंक माँगें।",link_expired:"यह लिंक समाप्त हो गया है। नया लिंक माँगें।",access_ended:"इस फ़ोन की पहुँच समाप्त हो गई है। नया लिंक माँगें।",already:"यह फ़ोन पहले से {n} के रूप में सेट है। वह लिंक दूसरे फ़ोन पर खोलें।",welcome:"स्वागत है, {n}। यह फ़ोन तैयार है।",new_confirm:"नई बातचीत शुरू करें?",new_done:"नई बातचीत।",fix_q:"इसमें क्या होना चाहिए?",fix_why:"क्यों? (वैकल्पिक)",fix_save:"सुधार सहेजें",fix_cancel:"रद्द करें",fix_change:"कृपया अनुवाद को वैसा बदलें जैसा होना चाहिए।",fix_saving:"सहेज रहे हैं…",fix_thanks:"धन्यवाद। PolyGo अब इसे इस्तेमाल करेगा ({n} सहेजे गए)।",fix_fail:"सहेज नहीं सके: ",loading:"लोड हो रहा है…",no_fixes:"अभी कोई सुधार नहीं।",fix_del:"यह सुधार हटाएँ",fix_load_fail:"लोड नहीं हो सका: ",heard_as:"{l} इस रूप में सुनी गई",
     size_label:"अधिकतम फ़ोन",copy_link:"लिंक कॉपी करें",share:"साझा करें…",link_copied:"लिंक कॉपी हो गया।",copy_fail:"कॉपी नहीं हो सका। इसके बदले कोड का स्क्रीनशॉट भेजें।",qr_fail:"कोड नहीं बन सका: ",share_text:"हमारी बातचीत में शामिल हों:",share_note:"यह लिंक या कोड उन लोगों को भेजें जिनके फ़ोन PolyGo के लिए पहले से सेट हैं।",join_as:"आप {n} ({l}) के रूप में शामिल होंगे",start_fail:"शुरू नहीं हो सका। कृपया फिर कोशिश करें।",theme_label:"रूप",theme_auto:"अपने-आप (फ़ोन जैसा)",theme_light:"हल्का",theme_dark:"गहरा",hs_btn:"PolyGo को होम स्क्रीन पर रखें",hs_ios:"Safari में: शेयर बटन दबाएँ, फिर “Add to Home Screen”।",hs_android:"Chrome में: ⋮ मेन्यू दबाएँ, फिर “Add to Home screen”।",hs_other:"इस पेज को Safari (iPhone) या Chrome (Android) में खोलें, फिर ब्राउज़र के मेन्यू से होम स्क्रीन पर जोड़ें।",starting:"तैयार हो रहे हैं…"},
   Assamese:{join_title:"Kothopokothonot jog diyok",name_label:"Apunar nam",name_ph:"Nam (lagib nelage)",lang_label:"Mur bhaxa",join:"Jog diyok",joining:"Jog diya hoise…",back:"Utoti jaok",
     idle:"Mic tipi kowok",listening:"Xuni asu…",thinking:"Anuwad kori asu…",speaking:"Koi asu…",hint:"Likhok, ba mic tipi kowok",
     people:"Manuh",leave:"Olai jaok",end:"Sokolure babe bondho korok",invite_more:"Aru manuhok matok",me:"moi",untranslated:"Apunar babe anuwad kora hua nai",
     joined:"{n} jog dile",left:"{n} olai gol",ended:"Kothopokothon bondho hol.",full:"Ei kothopokothon purno hoi goise.",
     gone:"Ei linkor somoy pari goise ba kothopokothon bondho hoise.",notsure:"Nixchit nohoy — Ingrajit artha dekhuwa hoise",notsent:"Pothuwa nagol. Aru ekbar sesta korok.",offline:"Network nai. Aru sesta kori asu…",
-    session:"Kothopokothon arombho korok",zoom_out:"Sutu korok",zoom_in:"Dangor korok",menu:"Menu",new_conv:"Notun kothopokothon",more:"Aru settings",tone_label:"Kenekoi sambodhon korim",tone_formal:"Sonmanor (apuni)",tone_informal:"Aponor (tumi)",tone_auto:"Kowa manuhjonor dore",script_label:"Axomiya kenekoi dekhuwa hobo (bodlabole tipok)",scr_script:"অ Axomiya okhor",scr_latin:"Aa Ingraji okhor",scr_tip:"Axomiya uttor kenekoi likhibo. Bodlabole tipok.",speed:"Kowar gati",corrections:"Sonshodhon",close:"Bondho korok",lang_aria:"Mur bhaxa",idle2:"Button tipi kowok",hint_main:"Likhok, ba button tipi kowok",no_sr:"Ei browserot kotha buji pua nai. Android ba computerot Chrome bebohar korok.",mic_fail:"Mic suru kori pua nagol: ",mic_blocked:"Mic bondho. Browser settingsot ei site-r babe anumoti diyok.",mic_nospeech:"Kiba xuna nai. Mic tipi kowok.",mic_none:"Mic pua nagol.",mic_net:"Kotha bujibo lage seba pua nagol (internet lage).",mic_other:"Micor osubidha: ",wrong:"Bhul?",play:"Anuwad xunok",translate:"Anuwad korok",cant:"Anuwad kori pua nagol. Aru ekbar sesta korok.",nolink:"Ei phone ekhono set kora hua nai. PolyGo chalowa manuhjonok link ba QR code maki, ei phoneot khulibo.",retry:"Aru ekbar sesta korok",offline_msg:"PolyGo-t pua nagol. Connection dekhi aru sesta korok.",link_used:"Ei link agotei bebohar kora hoise, ba thik nohoy. Notun link makok.",link_expired:"Ei linkor somoy pari goise. Notun link makok.",access_ended:"Ei phoner anumoti bondho hoise. Notun link makok.",already:"Ei phone agotei {n} hisabe set kora ase. Sei link anyta phoneot khulibo.",welcome:"Xagot, {n}. Ei phone sajo.",new_confirm:"Notun kothopokothon arombho koribo neki?",new_done:"Notun kothopokothon.",fix_q:"Ki kowa uchit?",fix_why:"Kio? (lagib nelage)",fix_save:"Sonshodhon rakhok",fix_cancel:"Batil korok",fix_change:"Anuwadtu jenekoi hobo lagiye senekoi bodlai dibo.",fix_saving:"Rakhi asu…",fix_thanks:"Dhonyobad. PolyGo-e etiya pora eitu bebohar korib ({n} rakhi thowa).",fix_fail:"Rakhi pua nagol: ",loading:"Loading…",no_fixes:"Ekhono kono sonshodhon nai.",fix_del:"Ei sonshodhon mehi dibo",fix_load_fail:"Loading hoi pua nagol: ",heard_as:"{l} jenekoi xunile",
+    session:"Kothopokothon arombho korok",zoom_out:"Sutu korok",zoom_in:"Dangor korok",menu:"Menu",new_conv:"Notun kothopokothon",more:"Aru settings",tone_label:"Kenekoi sambodhon korim",tone_formal:"Sonmanor (apuni)",tone_informal:"Aponor (tumi)",tone_auto:"Kowa manuhjonor dore",script_label:"Axomiya kenekoi dekhuwa hobo (bodlabole tipok)",scr_script:"অ Axomiya okhor",scr_latin:"Aa Ingraji okhor",scr_tip:"Axomiya uttor kenekoi likhibo. Bodlabole tipok.",speed:"Kowar gati",corrections:"Sonshodhon",close:"Bondho korok",lang_aria:"Pristar bhaxa",gear_aria:"Ei button-r bhaxa bodoliok",btn_lang:"Ei button-r bhaxa",idle2:"Button tipi kowok",hint_main:"Likhok, ba button tipi kowok",no_sr:"Ei browserot kotha buji pua nai. Android ba computerot Chrome bebohar korok.",mic_fail:"Mic suru kori pua nagol: ",mic_blocked:"Mic bondho. Browser settingsot ei site-r babe anumoti diyok.",mic_nospeech:"Kiba xuna nai. Mic tipi kowok.",mic_none:"Mic pua nagol.",mic_net:"Kotha bujibo lage seba pua nagol (internet lage).",mic_other:"Micor osubidha: ",wrong:"Bhul?",play:"Anuwad xunok",translate:"Anuwad korok",cant:"Anuwad kori pua nagol. Aru ekbar sesta korok.",nolink:"Ei phone ekhono set kora hua nai. PolyGo chalowa manuhjonok link ba QR code maki, ei phoneot khulibo.",retry:"Aru ekbar sesta korok",offline_msg:"PolyGo-t pua nagol. Connection dekhi aru sesta korok.",link_used:"Ei link agotei bebohar kora hoise, ba thik nohoy. Notun link makok.",link_expired:"Ei linkor somoy pari goise. Notun link makok.",access_ended:"Ei phoner anumoti bondho hoise. Notun link makok.",already:"Ei phone agotei {n} hisabe set kora ase. Sei link anyta phoneot khulibo.",welcome:"Xagot, {n}. Ei phone sajo.",new_confirm:"Notun kothopokothon arombho koribo neki?",new_done:"Notun kothopokothon.",fix_q:"Ki kowa uchit?",fix_why:"Kio? (lagib nelage)",fix_save:"Sonshodhon rakhok",fix_cancel:"Batil korok",fix_change:"Anuwadtu jenekoi hobo lagiye senekoi bodlai dibo.",fix_saving:"Rakhi asu…",fix_thanks:"Dhonyobad. PolyGo-e etiya pora eitu bebohar korib ({n} rakhi thowa).",fix_fail:"Rakhi pua nagol: ",loading:"Loading…",no_fixes:"Ekhono kono sonshodhon nai.",fix_del:"Ei sonshodhon mehi dibo",fix_load_fail:"Loading hoi pua nagol: ",heard_as:"{l} jenekoi xunile",
     size_label:"Sorbocho koita phone",copy_link:"Link copy korok",share:"Share korok…",link_copied:"Link copy hol.",copy_fail:"Copy kori pua nagol. Code-r screenshot pathai dibo.",qr_fail:"Code banai pua nagol: ",share_text:"Amar kothopokothonot jog diyok:",share_note:"Ei link ba code sei manuhjonok pathowok jar phone agotei PolyGo-r babe set kora ase.",join_as:"Apuni {n} ({l}) hisabe jog dibo",start_fail:"Arombho kori pua nagol. Aru ekbar sesta korok.",theme_label:"Rup",theme_auto:"Nijoke (phoneor dore)",theme_light:"Ujjol",theme_dark:"Ondhokar",hs_btn:"PolyGo home screenot rakhok",hs_ios:"Safari-t: Share button tipok, tarpisot “Add to Home Screen”.",hs_android:"Chrome-t: ⋮ menu tipok, tarpisot “Add to Home screen”.",hs_other:"Ei page Safari-t (iPhone) ba Chrome-t (Android) khulok, tarpisot browser menu-r pora home screenot jug kora.",starting:"Sajo hoi asu…"}
 };
 // Which language does this phone suggest? Only the FIRST language setting counts, and English is too ambiguous to trust.
@@ -501,7 +516,7 @@ function deviceLang(){
 const startUi=()=>{ const v=get("ui",""); return LANGS.includes(v)?v:(deviceLang()||"English"); };
 let room=null, roomMode=false, roomLang="", joinUi=startUi();   // the shared conversation this phone is in, if any
 const tt=(k,v)=>{
-  let s=(UI[(roomMode&&roomLang)||joinUi]||UI.English)[k]||UI.English[k]||k;
+  let s=(UI[joinUi]||UI.English)[k]||UI.English[k]||k;
   if(v) for(const [a,b] of Object.entries(v)) s=s.replace("{"+a+"}",b);
   return s;
 };
@@ -575,11 +590,11 @@ function showClaim(msg){
 function applyDevice(d){            // the first time this phone is set up: take over the languages and tone it was given
   put("la",d.lang); put("lb",d.partner); la.value=d.lang; lb.value=d.partner;
   put("tone",d.tone); toneEl.value=d.tone;
-  joinUi=d.lang; put("ui",d.lang);
-  applyMode();                      // the page and the two big buttons now speak the new language
+  joinUi=d.lang; put("ui",d.lang);  // the invite's language sets the page and the first button; they can be changed apart later
+  applyMode();
 }
 function adoptDevice(){             // every later start: the server knows this phone's language
-  joinUi=me.lang; put("ui",me.lang);
+  const u=get("ui",""); joinUi=LANGS.includes(u)?u:me.lang; put("ui",joinUi);        // the page language is its own choice now
   if(!isAdmin()){ la.value=me.lang; lb.value=me.partner; put("la",la.value); put("lb",lb.value); }   // an admin may pick any pair in the menu
   applyMode();
 }
@@ -937,28 +952,55 @@ function updateChip(){ $("#roomcount").textContent=room?String(room.people.lengt
 function paintRoomLang(){ paintLangSelect(); }
 function paintLangSelect(){
   const sel=$("#roomlang"); if(!sel.options.length) for(const l of LANGS) sel.add(new Option(NATIVE[l],l));
-  sel.value=(roomMode&&roomLang)||joinUi;
+  sel.value=joinUi;
 }
 const partnerOf=l=>l==="German"?"Assamese":"German";           // who a phone talks with in a one-to-one conversation (the server keeps the same table)
-async function setLanguage(l){                                  // the dropdown: the page AND the mic follow, and the server remembers it
+function setLanguage(l){                                       // the dropdown at the top: the words on the page, nothing else
   if(!LANGS.includes(l)) return;
-  const prev=joinUi, prevRoom=roomLang;
-  const undo=m=>{ joinUi=prev; roomLang=prevRoom; put("ui",prev); paintLangSelect(); applyMode(); if(m) say(m); };
+  joinUi=l; put("ui",l);
+  applyMode();
+  if(room&&!roomsheet.hidden) renderRoomSheet();               // the people screen is drawn by script, so repaint it too
+}
+// The little gear on a big button: which language does THIS button listen for? In a conversation there is one button
+// and the server keeps its language; otherwise the two buttons are a pair, and picking a language already on the other button swaps them.
+async function setSpeak(side,l){
+  if(!LANGS.includes(l)) return;
   if(roomMode&&room){
     const {r,d}=await api("POST","/api/rooms/"+room.id+"/profile",{pid:room.pid,lang:l});
-    if(!r.ok){ undo(d.detail||""); return; }
+    if(!r.ok){ say(d.detail||tt("offline_msg")); return; }
     roomLang=l; saveRoom();
+  }else{
+    const mine=side==="a"?la:lb, other=side==="a"?lb:la, prevMine=mine.value, prevOther=other.value;
+    if(l===prevMine) return;
+    if(other.value===l) other.value=prevMine;
+    mine.value=l;
+    if(me){
+      const {r,d}=await api("POST","/api/me/profile",{lang:la.value,partner:lb.value});
+      if(!r.ok){ mine.value=prevMine; other.value=prevOther; say(d.detail||tt("offline_msg")); refreshMics(); return; }
+      me=d.device;
+    }
+    put("la",la.value); put("lb",lb.value);
   }
-  joinUi=l; put("ui",l);
-  if(me){
-    const {r,d}=await api("POST","/api/me/profile",{lang:l});
-    if(!r.ok){ undo(d.detail||""); return; }
-    me=d.device;
-  }
-  la.value=l; lb.value=(me&&me.partner)||partnerOf(l); put("la",la.value); put("lb",lb.value);
-  applyMode(); paintLangSelect();
-  if(room&&!roomsheet.hidden) renderRoomSheet();            // the people screen is drawn by script, so repaint it too
+  refreshMics();
+  if(room&&!roomsheet.hidden) renderRoomSheet();
 }
+const langsheet=$("#langsheet");
+function openLangSheet(side){
+  if(rec) return;                                              // not while it is listening
+  const cur=roomMode?roomLang:(side==="a"?la.value:lb.value);
+  $("#lgtitle").textContent=tt(roomMode||side==="a"?"lang_label":"btn_lang");
+  const grid=$("#lggrid"); grid.replaceChildren();
+  for(const l of LANGS){
+    const b=document.createElement("button"); b.type="button"; b.textContent=(l===cur?"✓ ":"")+NATIVE[l];
+    if(l===cur) b.className="on";
+    b.onclick=()=>{ langsheet.hidden=true; setSpeak(side,l); };
+    grid.append(b);
+  }
+  langsheet.hidden=false;
+}
+$("#gara").onclick=()=>openLangSheet("a"); $("#garb").onclick=()=>openLangSheet("b");
+$("#lgclose").onclick=()=>{ langsheet.hidden=true; };
+langsheet.onclick=e=>{ if(e.target===langsheet) langsheet.hidden=true; };
 
 // ---- joining: one tap. The phone's own name and language are used. ----
 let joinReq=null;
@@ -966,7 +1008,7 @@ function waitRoom(){ try{ const w=JSON.parse(localStorage.getItem("polygo_wait_r
 function clearWait(){ try{ localStorage.removeItem("polygo_wait_room"); }catch(e){} }
 function paintJoin(){
   $("#jtitle").textContent=tt("join_title");
-  $("#jas").textContent=tt("join_as",{n:me?me.name:"",l:NATIVE[joinUi]||joinUi});
+  $("#jas").textContent=tt("join_as",{n:me?me.name:"",l:NATIVE[la.value]||la.value});
   $("#jgo").textContent=tt("join"); $("#jcancel").textContent=tt("back");
 }
 function openJoin(j,info){
@@ -984,7 +1026,7 @@ async function beginJoin(j){
 $("#jgo").onclick=async()=>{
   unlockSpeech();                                          // this tap is what lets an iPhone speak later
   const btn=$("#jgo"); btn.disabled=true; $("#jmsg").textContent=tt("joining");
-  const lang=joinUi;
+  const lang=la.value;                                      // you speak what your first button speaks
   const {r,d}=await api("POST","/api/rooms/"+joinReq.id+"/join",{lang,tone:toneEl.value});
   if(!r.ok){ $("#jmsg").textContent=r.status===409?tt("full"):(r.status===404||r.status===410?tt("gone"):(d.detail||tt("offline"))); btn.disabled=false; return; }
   joinsheet.hidden=true;
@@ -1001,7 +1043,7 @@ async function resumeSaved(){
 // ---- starting: one tap on "Make a session" ----
 async function startSession(){
   unlockSpeech(); const b=$("#roomstart"); b.disabled=true;
-  const lang=joinUi;
+  const lang=la.value;
   const {r,d}=await api("POST","/api/rooms",{lang,tone:toneEl.value,max_size:4});
   b.disabled=false;
   if(!r.ok){ say(r.status===0?tt("offline_msg"):(d.detail||tt("start_fail"))); return; }
@@ -1013,7 +1055,7 @@ $("#roomstart").onclick=startSession;
 // ---- being in a conversation ----
 function enterRoom(x){
   room={id:x.id,pid:x.pid,since:x.since||0,name:x.name,creator:!!x.creator,max:x.max_size||4,ceiling:x.ceiling||10,people:x.people||[],ended:false};
-  roomMode=true; roomLang=x.lang; joinUi=x.lang;
+  roomMode=true; roomLang=x.lang;          // the page keeps its language; roomLang is what THIS phone speaks in the conversation
   document.body.classList.add("room");
   inp.disabled=false; go.disabled=false; log.replaceChildren(); pendingMine.length=0;
   paintRoomLang(); saveRoom(); updateChip(); applyMode(); keepAwake();
@@ -1165,7 +1207,7 @@ window.addEventListener("hashchange",()=>{ if(location.hash.length>1) location.r
 const sheet=$("#sheet");
 const emptyText=()=>simple?"":"Type what was said in either language. It translates into the other one.";   // the simple view's hint lives in the text box
 function paintUI(){
-  document.documentElement.lang={English:"en",German:"de",Hindi:"hi",Assamese:"as"}[(roomMode&&roomLang)||joinUi]||"en";
+  document.documentElement.lang={English:"en",German:"de",Hindi:"hi",Assamese:"as"}[joinUi]||"en";
   for(const e of document.querySelectorAll("[data-t]")) e.textContent=tt(e.dataset.t);
   for(const e of document.querySelectorAll("[data-ta]")) e.setAttribute("aria-label",tt(e.dataset.ta));
   showScr();

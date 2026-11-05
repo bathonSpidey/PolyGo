@@ -234,8 +234,8 @@ def authenticate(key):
         return d
 
 
-def set_lang(did, lang):
-    """The phone's own language dropdown: its page language and the language it speaks (and so who it talks with)."""
+def set_lang(did, lang, partner=None):
+    """The language this phone speaks, and who it talks with: the usual partner, or the one it picked for its second button."""
     with _lock:
         _load()
         d = _state["devices"].get(did)
@@ -244,7 +244,12 @@ def set_lang(did, lang):
         name = lang_name(lang)
         if not name:
             raise DeviceError(400, "unknown language")
-        d["lang"], d["partner"] = name, PARTNER[name]
+        other = PARTNER[name]
+        if partner:
+            other = lang_name(partner)
+            if not other or other == name:
+                raise DeviceError(400, "unknown language" if not other else "pick two different languages")
+        d["lang"], d["partner"] = name, other
         _save()
         return d
 

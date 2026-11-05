@@ -201,6 +201,7 @@ class Claim(BaseModel):
 
 class Profile(BaseModel):
     lang: str
+    partner: str = ""
 
 
 class Redeem(BaseModel):
@@ -227,12 +228,12 @@ async def api_me(request: Request):
 
 @app.post("/api/me/profile")
 async def api_me_profile(p: Profile, request: Request):
-    """A phone changes its own language (page and speech); nothing else about it."""
+    """A phone changes the two languages of its big buttons (the page language stays on the phone); nothing else about it."""
     d = _device_from(request)
     if d is None:
         await _slow_no()
         raise HTTPException(401, "this phone is not set up")
-    return {"device": devices.public(devices.set_lang(d["id"], p.lang))}
+    return {"device": devices.public(devices.set_lang(d["id"], p.lang, p.partner))}
 
 
 @app.post("/api/claim")
