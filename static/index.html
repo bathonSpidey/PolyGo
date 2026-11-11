@@ -501,6 +501,7 @@ function speak(text,lang,btn,meta,queue){
   const u=new SpeechSynthesisUtterance(text);
   if(v){ u.voice=v; u.lang=v.lang; } else { u.lang=(VOICE_TAGS[lang]||["en-US"])[0]; }
   u.rate=parseFloat(rate.value)||0.75;
+  if(lang==="AssameseScript") u.rate=Math.max(0.4,u.rate*ASSAMESE_SLOWER);   // a Bengali voice reading Assamese is easier to follow a little slower
   const mine=++speakToken;      // an older utterance that gets cancelled must not reset the banner of the new one
   u.onstart=()=>{ if(mine===speakToken) setState("speaking"); };
   u.onend=u.onerror=()=>{ if(mine===speakToken) setState("idle"); };
@@ -511,6 +512,7 @@ function speak(text,lang,btn,meta,queue){
   return true;
 }
 let speakToken=0;
+const ASSAMESE_SLOWER=0.85;      // times the speed slider, for Assamese read by a Bengali voice
 
 // iPhones only allow speech that starts from a tap. Speaking a silent utterance inside the tap
 // handler unlocks the speaker, so the translation can be spoken when it arrives a moment later.
