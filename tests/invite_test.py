@@ -57,7 +57,18 @@ check("...but not this phone itself", all(p["id"] != ADMIN_ID for p in d["people
 check("...and nothing secret (only id, name, language)", all(set(p) == {"id", "name", "lang"} for p in d["people"]))
 check("...sorted by name", names == sorted(names, key=str.lower), names)
 s, d, _ = call("GET", "/api/people", key=FRIEND)
-check("a friend's phone cannot browse the family", s == 200 and d["people"] == [] and d["allowed"] is False, d)
+check("a friend's phone sees the same list (one rule for everyone)", s == 200 and "InvSmita" in [p["name"] for p in d["people"]], d)
+
+# ---- people an admin has invited but whose link is not opened yet are in the list too, and become normal when they open it
+s, d, _ = call("POST", "/api/admin/invites", {"name": "InvLater", "lang": "as"}, ADMIN)
+later_token = d["token"]
+people = call("GET", "/api/people", key=SMITA)[1]["people"]
+row = next((p for p in people if p["name"] == "InvLater"), {})
+check("a new invite shows in the list at once, marked pending", row.get("pending") is True and row.get("lang") == "Assamese", row)
+LATER, LATER_ID = redeem(later_token)
+people = call("GET", "/api/people", key=SMITA)[1]["people"]
+row = next((p for p in people if p["name"] == "InvLater"), {})
+check("...and is a normal phone once its link is opened", row and not row.get("pending") and row["id"] == LATER_ID, row)
 check("a phone that is not set up gets nothing", call("GET", "/api/people")[0] == 401)
 
 # ---- a conversation and invitations
@@ -96,7 +107,10 @@ s, d, _ = call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": [FRIEND_
 check("Smita (not the admin) can invite another phone", s == 200 and d["asked"] == ["InvFriend"], (s, d))
 check("a phone that is already inside is not invited again", call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": [SMITA_ID]}, SMITA)[0] == 404)
 check("someone who is not in the conversation cannot invite", call("POST", f"/api/rooms/{rid}/invite", {"pid": "nope", "ids": [MECH_ID]}, MECH)[0] == 404)
-check("a friend's phone cannot send invitations", call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": [MECH_ID]}, FRIEND)[0] == 403)
+check("a friend's phone gets no special treatment when inviting (a stranger to the room is refused like anyone)",
+      call("POST", f"/api/rooms/{rid}/invite", {"pid": "nope", "ids": [MECH_ID]}, FRIEND)[0] == 404)
+check("asking the same person again within a minute is ignored (no second ping)",
+      call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": [FRIEND_ID]}, SMITA)[1].get("asked") == [])
 check("unknown ids are ignored; nothing valid means a refusal", call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": ["zzz"]}, SMITA)[0] == 404)
 check("more than 10 at once is refused", call("POST", f"/api/rooms/{rid}/invite", {"pid": spid, "ids": [MECH_ID] * 3 + [str(i) for i in range(12)]}, SMITA)[0] == 400)
 
@@ -114,13 +128,33 @@ call("POST", f"/api/rooms/{rid}/invite", {"pid": pid, "ids": [FRIEND_ID]}, ADMIN
 inv = call("GET", "/api/me/invitations", key=FRIEND)[1]["invitations"]
 check("an invitation to a full room is flagged full", inv and inv[0]["full"] is True, inv)
 
+# ---- an invitation lapses when nobody is left in the conversation
+s, r2, _ = call("POST", "/api/rooms", {"lang": "English", "max_size": 3}, ADMIN)
+call("POST", f"/api/rooms/{r2['room']}/invite", {"pid": r2["pid"], "ids": [SMITA_ID]}, ADMIN)
+check("Smita is invited to a second conversation", len(call("GET", "/api/me/invitations", key=SMITA)[1]["invitations"]) == 1)
+call("POST", f"/api/rooms/{r2['room']}/leave", {"pid": r2["pid"]}, ADMIN)
+check("...and it lapses when the last person leaves", call("GET", "/api/me/invitations", key=SMITA)[1]["invitations"] == [])
+
+# ---- notification addresses (push)
+s, d, _ = call("GET", "/api/push/key", key=SMITA)
+check("the server gives its notification key", s == 200 and isinstance(d.get("key"), str) and len(d["key"]) >= 80, d)
+check("...only to set-up phones", call("GET", "/api/push/key")[0] == 401)
+good = {"endpoint": "https://fcm.googleapis.com/fcm/send/abc123", "keys": {"p256dh": "BPx" + "A" * 80, "auth": "x" * 22}}
+check("a phone can register a notification address", call("POST", "/api/me/push", good, SMITA)[0] == 200)
+check("an address on some other server is refused", call("POST", "/api/me/push", {**good, "endpoint": "https://evil.example.com/x"}, SMITA)[0] == 400)
+check("so is plain http, an internal address and missing keys",
+      call("POST", "/api/me/push", {**good, "endpoint": "http://fcm.googleapis.com/x"}, SMITA)[0] == 400
+      and call("POST", "/api/me/push", {**good, "endpoint": "https://127.0.0.1/x"}, SMITA)[0] == 400
+      and call("POST", "/api/me/push", {"endpoint": good["endpoint"], "keys": {}}, SMITA)[0] == 400)
+check("a phone can switch notifications off again", call("DELETE", "/api/me/push", key=SMITA)[0] == 200)
+
 # ---- an ended room offers nothing
 call("POST", f"/api/rooms/{rid}/end", {"pid": pid}, ADMIN)
 check("after the conversation ends, invitations vanish", call("GET", "/api/me/invitations", key=FRIEND)[1]["invitations"] == [])
 check("and nobody can be invited to it", call("POST", f"/api/rooms/{rid}/invite", {"pid": pid, "ids": [FRIEND_ID]}, ADMIN)[0] in (404, 410))
 
 # ---- tidy up the test phones
-for did in (SMITA_ID, MECH_ID, FRIEND_ID):
+for did in (SMITA_ID, MECH_ID, FRIEND_ID, LATER_ID):
     call("DELETE", f"/api/admin/devices/{did}", key=ADMIN)
 
 print(f"\n{sum(results)}/{len(results)} checks passed")

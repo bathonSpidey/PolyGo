@@ -78,6 +78,8 @@ class Room:
     def waiting_invites(self):
         """Open invitations of people who are not in the room (yet), newest last."""
         now = time.time()
+        if not self.people:                                 # nobody is left to talk to: the invitations lapse
+            return []
         here = {p.did for p in self.people.values() if p.did}
         return [(did, v) for did, v in self.invited.items() if did not in here and now - v["ts"] < INVITE_TTL]
 
@@ -158,7 +160,8 @@ class Room:
         return p
 
     async def invite(self, by, targets):
-        """Someone in the room asks other set-up phones to join. targets = [(device id, name)]. Returns the names asked."""
+        """Someone in the room asks other set-up phones to join. targets = [(device id, name)].
+        Returns the (device id, name) pairs that are newly asked: asking the same person again within a minute is ignored."""
         if not self.alive():
             raise RoomError(410, "this conversation has ended or the link has expired")
         now = time.time()
@@ -169,12 +172,15 @@ class Room:
         for did, name in targets:
             if did in here or did == by.did:
                 continue
+            old = self.invited.get(did)
+            if old and now - old["ts"] < 60:
+                continue
             if did not in self.invited and len(self.invited) >= MAX_INVITED:
                 raise RoomError(429, "too many open invitations")
             self.invited[did] = {"name": name, "by": by.name, "ts": now}
-            asked.append(name)
+            asked.append((did, name))
         if asked:
-            await self.publish("invite", name=by.name, names=asked)
+            await self.publish("invite", name=by.name, names=[n for _, n in asked])
         return asked
 
     async def leave(self, p):
@@ -252,7 +258,7 @@ def invitations_for(did):
     out = []
     for room in ROOMS.values():
         v = room.invited.get(did)
-        if not v or not room.alive() or time.time() - v["ts"] >= INVITE_TTL:
+        if not v or not room.alive() or not room.people or time.time() - v["ts"] >= INVITE_TTL:
             continue
         if any(p.did == did for p in room.people.values()):
             continue

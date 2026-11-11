@@ -133,16 +133,17 @@ def have_admin():
 
 def directory(me_id):
     """Everyone this phone may invite to a conversation: names and languages only (never keys), sorted by name.
-    A friend's phone (access that ends) cannot browse the family, so it gets an empty list."""
+    Every set-up phone gets the same list. People an admin has invited but whose link is not opened yet are in it
+    too, marked pending, so the list is complete from the moment an invite is made."""
     with _lock:
         _load()
         now = time.time()
-        me = _state["devices"].get(me_id)
-        if me is None or me.get("expires_at"):
-            return []
-        return [{"id": d["id"], "name": d["name"], "lang": d["lang"]}
-                for d in sorted(_state["devices"].values(), key=lambda x: x["name"].lower())
-                if d["id"] != me_id and not (d.get("expires_at") and now > d["expires_at"])]
+        out = [{"id": d["id"], "name": d["name"], "lang": d["lang"]}
+               for d in _state["devices"].values()
+               if d["id"] != me_id and not (d.get("expires_at") and now > d["expires_at"])]
+        out += [{"id": i["id"], "name": i["name"], "lang": i["lang"], "pending": True}
+                for i in _state["invites"].values() if not i["link_expires"] or i["link_expires"] > now]
+        return sorted(out, key=lambda x: x["name"].lower())
 
 
 def find(did):
