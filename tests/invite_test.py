@@ -135,19 +135,6 @@ check("Smita is invited to a second conversation", len(call("GET", "/api/me/invi
 call("POST", f"/api/rooms/{r2['room']}/leave", {"pid": r2["pid"]}, ADMIN)
 check("...and it lapses when the last person leaves", call("GET", "/api/me/invitations", key=SMITA)[1]["invitations"] == [])
 
-# ---- notification addresses (push)
-s, d, _ = call("GET", "/api/push/key", key=SMITA)
-check("the server gives its notification key", s == 200 and isinstance(d.get("key"), str) and len(d["key"]) >= 80, d)
-check("...only to set-up phones", call("GET", "/api/push/key")[0] == 401)
-good = {"endpoint": "https://fcm.googleapis.com/fcm/send/abc123", "keys": {"p256dh": "BPx" + "A" * 80, "auth": "x" * 22}}
-check("a phone can register a notification address", call("POST", "/api/me/push", good, SMITA)[0] == 200)
-check("an address on some other server is refused", call("POST", "/api/me/push", {**good, "endpoint": "https://evil.example.com/x"}, SMITA)[0] == 400)
-check("so is plain http, an internal address and missing keys",
-      call("POST", "/api/me/push", {**good, "endpoint": "http://fcm.googleapis.com/x"}, SMITA)[0] == 400
-      and call("POST", "/api/me/push", {**good, "endpoint": "https://127.0.0.1/x"}, SMITA)[0] == 400
-      and call("POST", "/api/me/push", {"endpoint": good["endpoint"], "keys": {}}, SMITA)[0] == 400)
-check("a phone can switch notifications off again", call("DELETE", "/api/me/push", key=SMITA)[0] == 200)
-
 # ---- an ended room offers nothing
 call("POST", f"/api/rooms/{rid}/end", {"pid": pid}, ADMIN)
 check("after the conversation ends, invitations vanish", call("GET", "/api/me/invitations", key=FRIEND)[1]["invitations"] == [])

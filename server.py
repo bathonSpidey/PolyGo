@@ -8,7 +8,6 @@ import segno
 import corrections
 import devices
 import keepalive
-import push
 import rooms
 import stats
 import translator
@@ -292,9 +291,7 @@ async def admin_stats(admin=Depends(require_admin)):
 
 @app.delete("/api/admin/devices/{did}")
 async def admin_forget(did: str, admin=Depends(require_admin)):
-    removed = devices.forget(did, admin)
-    push.remove(did)                                    # a removed phone gets no more notifications
-    return {"removed": removed}
+    return {"removed": devices.forget(did, admin)}
 
 
 @app.post("/api/auth", dependencies=[Depends(require_auth)])
@@ -450,45 +447,6 @@ async def api_people(request: Request):
     return {"people": devices.directory(_device_from(request)["id"])}
 
 
-# What the notification says, in the language of the phone it goes to (the Axomiya line is a draft).
-PUSH_TEXT = {"English": "{n} invites you to talk together", "German": "{n} lädt Sie zum Gespräch ein",
-             "Hindi": "{n} ने आपको बातचीत के लिए बुलाया है", "Assamese": "{n}-e apunak kothopokothonot matise"}
-
-
-async def _notify(did, by_name, rid):
-    d = devices.find(did)
-    if d and push.count(did):
-        text = PUSH_TEXT.get(d.get("lang"), PUSH_TEXT["English"]).replace("{n}", by_name)
-        await push.send(did, {"title": "PolyGo", "body": text, "tag": "invite-" + rid, "url": "/#invited"})
-
-
-class PushSub(BaseModel):
-    endpoint: str
-    keys: dict
-
-
-class PushOff(BaseModel):
-    endpoint: str = ""
-
-
-@app.get("/api/push/key", dependencies=[Depends(require_auth)])
-async def api_push_key():
-    return {"key": push.public_key()}
-
-
-@app.post("/api/me/push", dependencies=[Depends(require_auth)])
-async def api_push_on(s: PushSub, request: Request):
-    """This phone asks to get invitations as notifications, even when PolyGo is closed."""
-    if not push.add(_device_from(request)["id"], {"endpoint": s.endpoint, "keys": s.keys}):
-        raise HTTPException(400, "this phone's notification address cannot be used")
-    return {"ok": True}
-
-
-@app.delete("/api/me/push", dependencies=[Depends(require_auth)])
-async def api_push_off(request: Request, endpoint: str = ""):
-    push.remove(_device_from(request)["id"], endpoint or None)
-    return {"ok": True}
-
 
 @app.post("/api/rooms/{rid}/invite", dependencies=[Depends(require_auth)])
 async def room_invite(rid: str, r: RoomInvite, request: Request):
@@ -507,8 +465,6 @@ async def room_invite(rid: str, r: RoomInvite, request: Request):
         raise HTTPException(404, "nobody to invite")
     by.last_seen = time.time()
     asked = await room.invite(by, targets)
-    for did, _ in asked:                                # a notification for phones whose page is closed
-        asyncio.create_task(_notify(did, by.name, room.id))
     return {"asked": [n for _, n in asked], **room.summary()}
 
 
@@ -635,13 +591,13 @@ async def index():
 
 # The home-screen icon and its manifest. Public on purpose (like the page itself): a phone fetches them without any key.
 PUBLIC_FILES = {"/manifest.webmanifest": "application/manifest+json", "/icon-180.png": "image/png",
-                "/icon-192.png": "image/png", "/icon-512.png": "image/png", "/sw.js": "text/javascript"}
+                "/icon-192.png": "image/png", "/icon-512.png": "image/png"}
 
 
 def _public_file(name: str, mime: str):
     async def handler():
         return FileResponse(os.path.join(HERE, "static", name), media_type=mime,
-                            headers={"Cache-Control": "no-cache" if name == "sw.js" else "public, max-age=86400"})
+                            headers={"Cache-Control": "public, max-age=86400"})
     return handler
 
 

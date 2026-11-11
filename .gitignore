@@ -15,6 +15,3 @@ stats.json
 .stats-*
 keepalive.json
 .keepalive-*
-push.json
-.push-*
-vapid_private.pem
