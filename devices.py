@@ -131,6 +131,30 @@ def have_admin():
     return admin_count() > 0
 
 
+def directory(me_id):
+    """Everyone this phone may invite to a conversation: names and languages only (never keys), sorted by name.
+    A friend's phone (access that ends) cannot browse the family, so it gets an empty list."""
+    with _lock:
+        _load()
+        now = time.time()
+        me = _state["devices"].get(me_id)
+        if me is None or me.get("expires_at"):
+            return []
+        return [{"id": d["id"], "name": d["name"], "lang": d["lang"]}
+                for d in sorted(_state["devices"].values(), key=lambda x: x["name"].lower())
+                if d["id"] != me_id and not (d.get("expires_at") and now > d["expires_at"])]
+
+
+def find(did):
+    """A device that exists and whose access has not ended, or None."""
+    with _lock:
+        _load()
+        d = _state["devices"].get(did)
+        if d is None or (d.get("expires_at") and time.time() > d["expires_at"]):
+            return None
+        return d
+
+
 # ---------- creating devices ----------
 def _name_taken(name):
     low = name.lower()

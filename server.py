@@ -417,7 +417,8 @@ async def room_new(r: RoomNew, request: Request):
     """Start a shared conversation; the creator is its first member. A person's name is their phone's name."""
     room = rooms.create(r.max_size)
     try:
-        p = await room.join(_device_from(request)["name"], r.lang, r.tone)
+        me = _device_from(request)
+        p = await room.join(me["name"], r.lang, r.tone, "", me["id"])
     except Exception:
         rooms.ROOMS.pop(room.id, None)
         raise
@@ -431,10 +432,60 @@ async def room_info(rid: str):
     return {"ceiling": rooms.ROOM_CEILING, "full": len(room.active()) >= room.max_size, **room.summary()}
 
 
+class RoomInvite(BaseModel):
+    pid: str
+    ids: list[str]
+
+
+class Decline(BaseModel):
+    room: str
+
+
+@app.get("/api/people", dependencies=[Depends(require_auth)])
+async def api_people(request: Request):
+    """The phones this one may invite: names and languages only. A friend's phone (limited access) gets none."""
+    d = _device_from(request)
+    return {"allowed": not d.get("expires_at"), "people": devices.directory(d["id"])}
+
+
+@app.post("/api/rooms/{rid}/invite", dependencies=[Depends(require_auth)])
+async def room_invite(rid: str, r: RoomInvite, request: Request):
+    """Anyone in the conversation can ask other set-up phones to join; each gets it on its own screen."""
+    me = _device_from(request)
+    if me.get("expires_at"):
+        raise HTTPException(403, "this phone cannot invite others")
+    room = rooms.get(rid)
+    by = room.person(r.pid)
+    if len(r.ids) > 10:
+        raise HTTPException(400, "invite at most 10 people at a time")
+    targets = []
+    for did in dict.fromkeys(r.ids):                    # no duplicates
+        d = devices.find(did)
+        if d and did != me["id"]:
+            targets.append((did, d["name"]))
+    if not targets:
+        raise HTTPException(404, "nobody to invite")
+    by.last_seen = time.time()
+    asked = await room.invite(by, targets)
+    return {"asked": asked, **room.summary()}
+
+
+@app.get("/api/me/invitations", dependencies=[Depends(require_auth)])
+async def api_my_invitations(request: Request):
+    return {"invitations": rooms.invitations_for(_device_from(request)["id"])}
+
+
+@app.post("/api/me/invitations/decline", dependencies=[Depends(require_auth)])
+async def api_decline(c: Decline, request: Request):
+    rooms.decline(_device_from(request)["id"], c.room)
+    return {"ok": True}
+
+
 @app.post("/api/rooms/{rid}/join", dependencies=[Depends(require_auth)])
 async def room_join(rid: str, r: RoomJoin, request: Request):
     room = rooms.get(rid)
-    p = await room.join(_device_from(request)["name"], r.lang, r.tone, r.pid)
+    me = _device_from(request)
+    p = await room.join(me["name"], r.lang, r.tone, r.pid, me["id"])
     return {"pid": p.pid, "name": p.name, "since": p.joined_event, "creator": p.pid == room.creator,
             "ceiling": rooms.ROOM_CEILING, **room.summary()}
 

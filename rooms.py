@@ -18,6 +18,8 @@ FORGET_AFTER = 600          # seconds of silence before a phone is dropped from 
 MAX_TEXT = 600
 RATE_COUNT, RATE_WINDOW = 8, 30.0   # messages per person per window
 MAX_PENDING = 6             # translations waiting in one room before we say "busy"
+INVITE_TTL = 2 * 3600       # an invitation waits this long for a phone to come online
+MAX_INVITED = 30            # open invitations in one room
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -34,9 +36,9 @@ def clean_name(value):
 
 
 class Participant:
-    def __init__(self, name, lang, tone):
+    def __init__(self, name, lang, tone, did=""):
         self.pid = secrets.token_urlsafe(9)
-        self.name, self.lang, self.tone = name, lang, tone
+        self.name, self.lang, self.tone, self.did = name, lang, tone, did
         self.joined_event = 0
         self.last_seen = time.time()
         self.sent = deque()
@@ -57,6 +59,7 @@ class Room:
         self.cond = asyncio.Condition()
         self.pending = 0
         self.empty_since = None
+        self.invited = {}                                   # device id -> {"name", "by", "ts"}: asked, not joined yet
 
     # ---- state ----
     def alive(self):
@@ -72,9 +75,16 @@ class Room:
             raise RoomError(404, "you are not in this conversation")
         return p
 
+    def waiting_invites(self):
+        """Open invitations of people who are not in the room (yet), newest last."""
+        now = time.time()
+        here = {p.did for p in self.people.values() if p.did}
+        return [(did, v) for did, v in self.invited.items() if did not in here and now - v["ts"] < INVITE_TTL]
+
     def summary(self):
         return {"max_size": self.max_size, "expires_in": max(0, int(self.expires - time.time())),
                 "people": [{"name": p.name, "lang": p.lang} for p in self.people.values()],
+                "invited": [v["name"] for _, v in self.waiting_invites()],
                 "closed": self.closed or time.time() >= self.expires}
 
     def languages_for(self, sender):
@@ -105,7 +115,7 @@ class Room:
         if kind in ("join", "leave") and ev.get("pid") == p.pid:
             return None
         if kind != "message":
-            return {k: ev[k] for k in ("id", "kind", "ts", "name", "lang") if k in ev}
+            return {k: ev[k] for k in ("id", "kind", "ts", "name", "lang", "names") if k in ev}
         out = {"id": ev["id"], "kind": "message", "ts": ev["ts"], "from": ev["name"], "from_lang": ev["lang"],
                "mine": ev["pid"] == p.pid, "original": ev["text"], "ok": ev["ok"], "translated": True}
         if ev["lang"] == p.lang:
@@ -124,7 +134,7 @@ class Room:
         return out
 
     # ---- people ----
-    async def join(self, name, lang, tone, pid=""):
+    async def join(self, name, lang, tone, pid="", did=""):
         if not self.alive():
             raise RoomError(410, "this conversation has ended or the link has expired")
         if lang not in LANGS:
@@ -134,16 +144,38 @@ class Room:
         p = self.people.get(pid) if pid else None
         if p:                                        # coming back after a reload or a dropped connection
             p.name, p.lang, p.tone, p.last_seen = clean_name(name) or p.name, lang, tone, time.time()
+            self.invited.pop(p.did, None)
             return p
         if len(self.active()) >= self.max_size:
             raise RoomError(409, "this conversation is full")
-        p = Participant(clean_name(name) or self.guest_name(), lang, tone)
+        p = Participant(clean_name(name) or self.guest_name(), lang, tone, did)
         self.people[p.pid] = p
+        self.invited.pop(did, None)
         if self.creator is None:
             self.creator = p.pid
         ev = await self.publish("join", pid=p.pid, name=p.name, lang=p.lang)
         p.joined_event = ev["id"]                    # they will only ever see what happens after this
         return p
+
+    async def invite(self, by, targets):
+        """Someone in the room asks other set-up phones to join. targets = [(device id, name)]. Returns the names asked."""
+        if not self.alive():
+            raise RoomError(410, "this conversation has ended or the link has expired")
+        now = time.time()
+        for did in [d for d, v in self.invited.items() if now - v["ts"] >= INVITE_TTL]:
+            del self.invited[did]                           # old ones fall away
+        here = {p.did for p in self.people.values() if p.did}
+        asked = []
+        for did, name in targets:
+            if did in here or did == by.did:
+                continue
+            if did not in self.invited and len(self.invited) >= MAX_INVITED:
+                raise RoomError(429, "too many open invitations")
+            self.invited[did] = {"name": name, "by": by.name, "ts": now}
+            asked.append(name)
+        if asked:
+            await self.publish("invite", name=by.name, names=asked)
+        return asked
 
     async def leave(self, p):
         self.people.pop(p.pid, None)
@@ -213,6 +245,26 @@ def create(max_size):
     room = Room(max_size)
     ROOMS[room.id] = room
     return room
+
+
+def invitations_for(did):
+    """Open invitations for this phone, newest first: who asked, who is there, and whether the room has space."""
+    out = []
+    for room in ROOMS.values():
+        v = room.invited.get(did)
+        if not v or not room.alive() or time.time() - v["ts"] >= INVITE_TTL:
+            continue
+        if any(p.did == did for p in room.people.values()):
+            continue
+        out.append({"room": room.id, "from": v["by"], "ts": v["ts"], "people": [p.name for p in room.people.values()],
+                    "max_size": room.max_size, "full": len(room.active()) >= room.max_size})
+    return sorted(out, key=lambda x: -x["ts"])
+
+
+def decline(did, rid):
+    room = ROOMS.get(rid)
+    if room:
+        room.invited.pop(did, None)
 
 
 def get(rid):
