@@ -149,6 +149,21 @@ body:not(.room) #roomstart{display:inline-block;font-size:.8em;padding:9px 13px;
 body.room #roomstart,body.room #boxb,body.room #pairrows,body.room #snew{display:none!important}
 #roomlang{font-size:.85em;max-width:7.5em}
 #roombtn{font-size:1.05em;padding:8px 12px}
+/* header buttons are plain icons: 👥 with a number inside a conversation (👥 + before one), ⚙ for settings; all easy to hit */
+#roombtn,#roomstart,#more{min-height:44px;min-width:44px;line-height:1}
+body:not(.room) #roomstart{font-size:1.15em;padding:8px 14px;display:inline-flex;align-items:center;justify-content:center;gap:3px}
+#roomstart b{font-size:1.1em}
+body.simple #more{font-size:1.45em;padding:6px 12px}
+@media(max-width:480px){      /* phones: one row, the title makes room for the buttons inside a conversation */
+  header{gap:6px;flex-wrap:nowrap}
+  body.room header h1{display:none}
+  body.room #roomlang{margin-right:auto;max-width:6.5em}
+  #roomexit{padding:7px 10px}
+  body.simple #more{padding:6px 10px}
+}
+/* a Back button that stays at the top of every pop-up screen, so you never have to scroll to find a way out */
+.sheetcard .sheettop{position:sticky;top:-20px;z-index:3;margin:-20px -20px 0;padding:12px 14px 10px;background:var(--card);border-radius:22px 22px 0 0}
+.sheetcard .backbtn{padding:10px 18px;border-radius:12px;font-weight:700;font-size:.9em;display:inline-flex;gap:8px;align-items:center;min-height:44px}
 .who{font-size:.8em;font-weight:700;color:var(--mute);margin-bottom:2px}
 .sys{align-self:center;color:var(--mute);font-size:.85em;text-align:center;padding:2px 8px}
 .langgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -265,6 +280,7 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
 </div>
 <div id="sheet" hidden>
   <div class="sheetcard">
+    <div class="sheettop"><button class="backbtn" type="button" data-closes="sclose"><span aria-hidden="true">‹</span><span data-t="back">Back</span></button></div>
     <h2>PolyGo</h2>
     <div class="sheetrow"><button id="fsm" type="button" data-ta="zoom_out" aria-label="Zoom out: smaller text">🔍 −</button><button id="fsp" type="button" data-ta="zoom_in" aria-label="Zoom in: larger text">🔍 +</button></div>
     <label class="invf"><span data-t="theme_label">Appearance</span>
@@ -307,6 +323,7 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
 </div>
 <div id="adminsheet" hidden>
   <div class="sheetcard">
+    <div class="sheettop"><button class="backbtn" type="button" data-closes="aiclose"><span aria-hidden="true">‹</span><span data-t="back">Back</span></button></div>
     <h2 id="ahead">Invite someone</h2>
     <div id="aform">
       <label class="invf">Name<input id="ainame" type="text" maxlength="30" autocomplete="off" placeholder="For example Smita" aria-label="Name of the person or phone"></label>
@@ -341,6 +358,7 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
 </div>
 <div id="devsheet" hidden>
   <div class="sheetcard">
+    <div class="sheettop"><button class="backbtn" type="button" data-closes="devclose"><span aria-hidden="true">‹</span><span data-t="back">Back</span></button></div>
     <h2>Devices</h2>
     <div id="devlist"></div>
     <button id="devinvite" class="primary" type="button">Invite someone</button>
@@ -349,6 +367,7 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
 </div>
 <div id="statssheet" hidden>
   <div class="sheetcard">
+    <div class="sheettop"><button class="backbtn" type="button" data-closes="statsclose"><span aria-hidden="true">‹</span><span data-t="back">Back</span></button></div>
     <h2>Stats</h2>
     <div id="statsbody"></div>
     <div class="sheetrow"><button id="statsrefresh" type="button">Refresh</button><button id="statsclose" type="button">Close</button></div>
@@ -379,6 +398,7 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
 </div>
 <div id="roomsheet" hidden>
   <div class="sheetcard">
+    <div class="sheettop"><button class="backbtn" type="button" data-closes="rclose"><span aria-hidden="true">‹</span><span data-t="back">Back</span></button></div>
     <h2 id="rtitle" data-t="session"></h2>
     <p class="note" id="rintro" data-t="session_intro"></p>
     <div class="step"><b>1</b><span data-t="step1"></span></div>
@@ -410,8 +430,8 @@ body.room #roombar.alone{background:var(--warnbg);color:var(--warn)}
   <select id="roomlang" data-ta="lang_aria" aria-label="My language"></select>
   <button id="roomexit" type="button" data-t="exit"></button>
   <button class="ghost" id="roombtn" aria-label="People">👥 <span id="roomcount"></span></button>
-  <button class="ghost" id="roomstart" data-t="session">Make a session</button>
-  <button class="ghost" id="more" data-ta="menu" aria-label="Menu">⋯</button>
+  <button class="ghost" id="roomstart" type="button" data-ta="session" aria-label="Make a session"><span aria-hidden="true">👥</span><b aria-hidden="true">+</b></button>
+  <button class="ghost" id="more" data-ta="menu" aria-label="Menu">⚙</button>
   <button id="reset" type="button" hidden></button>
 </header>
 <button id="roombar" type="button"></button>
@@ -1416,6 +1436,7 @@ $("#shome").onclick=()=>{
 };
 $("#more").onclick=()=>{ sheet.hidden=false; voiceInfo(); };
 $("#sclose").onclick=()=>{ sheet.hidden=true; };
+for(const b of document.querySelectorAll(".backbtn")) b.onclick=()=>$("#"+b.dataset.closes).click();     // the Back at the top does what the Close at the bottom does
 $("#sinvite").onclick=()=>{ sheet.hidden=true; openAdminInvite(); };
 $("#sdevices").onclick=()=>{ sheet.hidden=true; openDevices(); };
 $("#sstats").onclick=()=>{ sheet.hidden=true; openStats(); };
